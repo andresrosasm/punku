@@ -1,5 +1,8 @@
-// Smoke test del flujo end-to-end de PUNKU (no se commitea como prueba formal).
-const BASE = "http://localhost:3000";
+// Smoke test del flujo end-to-end de PUNKU.
+// Uso: node scripts/smoke.mjs [URL_BASE]   (por defecto http://localhost:3000)
+// Ej. producción: node scripts/smoke.mjs https://punku.vercel.app
+const BASE = process.argv[2] || process.env.PUNKU_BASE || "http://localhost:3000";
+console.log("== Smoke test contra:", BASE, "==");
 const j = (r) => r.json();
 
 async function main() {
