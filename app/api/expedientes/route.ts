@@ -44,6 +44,20 @@ export async function POST(req: NextRequest) {
     // 2) Una sola llamada al motor (timeout 10s) — con fallback a reglas adentro.
     const ia = await estructurarNecesidad(input);
 
+    // 2b) Validación de coherencia: si el input no es una necesidad real, NO se
+    //     inventa ni se crea el expediente. Se devuelve la señal para que la UI
+    //     pida reescribir. (No se persiste nada.)
+    if (!ia.coherente) {
+      return NextResponse.json(
+        {
+          incoherente: true,
+          motivo: ia.motivo || "El texto ingresado no es suficiente o no es claro.",
+          mensaje: "El texto ingresado no es suficiente o no es claro. Por favor describe la necesidad real de tu comunidad.",
+        },
+        { status: 422, headers: NO_STORE }
+      );
+    }
+
     // 3) Contacto SENSIBLE — tabla aparte, jamás a la IA (spec 02 §3 / 06).
     const c = body.contacto || {};
     const contacto: ContactoInput = {

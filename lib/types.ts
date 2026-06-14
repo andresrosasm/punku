@@ -19,6 +19,11 @@ export interface NecesidadInput {
 
 /** Salida estructurada del motor de IA (spec 03). */
 export interface ClasificacionIA {
+  /** ¿El input describe una necesidad comunitaria real y comprensible?
+   *  Si es false, NO se inventa contenido: el flujo se detiene y se pide reescribir. */
+  coherente: boolean;
+  /** Motivo breve cuando coherente=false (para mostrar al usuario). */
+  motivo: string;
   categoria: CatId;
   modalidad: "monovalente" | "polivalente";
   urgencia: "normal" | "alta";
@@ -29,6 +34,14 @@ export interface ClasificacionIA {
   meta_sugerida: string;
   confianza: number;            // 0..1
   clasificado_por: "ia" | "reglas";
+}
+
+/** Resultado de una sugerencia de campo de B4 ("Sugerir con IA"). */
+export interface SugerenciaB4 {
+  coherente: boolean;
+  texto: string;   // el texto sugerido si coherente
+  motivo: string;  // por qué no, si !coherente
+  generado_por: "ia" | "plantilla";
 }
 
 /** Datos de contacto SENSIBLES (tabla separada — nunca van a la IA, spec 02/06). */

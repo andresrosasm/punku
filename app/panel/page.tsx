@@ -14,7 +14,7 @@ import {
   catOf, type Lang, type CatId, type EstadoId,
 } from "@/lib/punku-data";
 import type { Expediente } from "@/lib/types";
-import { modalidadDe, justificacionIA, SUG, uncpPrintHtml, type B4Form } from "@/lib/uncp-doc";
+import { modalidadDe, justificacionIA, uncpPrintHtml, type B4Form } from "@/lib/uncp-doc";
 
 /* ---------- helpers de presentación ---------- */
 function canalLabel(c: string): string {
@@ -394,12 +394,16 @@ function Detalle({ lang, exp, onBack, onArmar, onEstado }: {
 }
 
 /* ---------- B4 Completar solicitud (formato UNCP) ---------- */
-function EdField({ label, children, ai, onAi }: any) {
+function EdField({ label, children, ai, onAi, loading }: any) {
   return (
     <div className="ed-field">
       <div className="ed-top">
         <span className="ed-label">{label}</span>
-        {ai && <button className="ai-btn" onClick={onAi}><I.sparkle s={13} /> Sugerir con IA</button>}
+        {ai && (
+          <button className="ai-btn" onClick={onAi} disabled={loading}>
+            {loading ? <><span className="ai-spin" /> Generando…</> : <><I.sparkle s={13} /> Sugerir con IA</>}
+          </button>
+        )}
       </div>
       {children}
     </div>
@@ -432,6 +436,25 @@ function Solicitud({ exp, onBack }: { exp: Expediente; onBack: () => void }) {
     !!f.docente.trim(), f.estudiantes.some((e) => e.nombre.trim()), !!f.evaluacion.trim(),
   ];
   const pct = Math.round(70 + (editableChecks.filter(Boolean).length / editableChecks.length) * 30);
+
+  // "Sugerir con IA": llama al motor real (/api/sugerir). Si la IA no está
+  // disponible cae a plantilla; si el expediente no es coherente, avisa y no rellena.
+  const [sugiriendo, setSugiriendo] = useState("");
+  const sugerir = async (campo: "objetivoGen" | "objetivosEsp" | "metas" | "evaluacion") => {
+    if (sugiriendo) return;
+    setSugiriendo(campo);
+    try {
+      const res = await fetch("/api/sugerir", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codigo: exp.codigo, campo }),
+      });
+      const d = await res.json();
+      if (d.coherente && d.texto) set(campo, d.texto);
+      else if (d.coherente === false) flash(d.motivo || "No hay información suficiente para sugerir este campo.");
+      else flash("No se pudo generar la sugerencia.");
+    } catch { flash("No se pudo generar la sugerencia."); }
+    setSugiriendo("");
+  };
 
   const generar = () => {
     const ctx = { area, modal, ods, justificacion: justif, fechaIni: f.fechaIni, fechaFin: f.fechaFin, form: f };
@@ -502,13 +525,13 @@ function Solicitud({ exp, onBack }: { exp: Expediente; onBack: () => void }) {
 
         <div className="b4-block fill">
           <div className="b4-bhead a"><I.clock s={15} /> Completa para formalizar<span>la UNCP escribe aquí</span></div>
-          <EdField label="Objetivo general" ai onAi={() => set("objetivoGen", SUG.objetivoGen(exp, c))}>
+          <EdField label="Objetivo general" ai loading={sugiriendo === "objetivoGen"} onAi={() => sugerir("objetivoGen")}>
             <textarea className="ed-ta" rows={3} value={f.objetivoGen} onChange={(e) => set("objetivoGen", e.target.value)} placeholder="¿Cuál es el propósito principal del proyecto?" />
           </EdField>
-          <EdField label="Objetivos específicos" ai onAi={() => set("objetivosEsp", SUG.objetivosEsp())}>
+          <EdField label="Objetivos específicos" ai loading={sugiriendo === "objetivosEsp"} onAi={() => sugerir("objetivosEsp")}>
             <textarea className="ed-ta" rows={3} value={f.objetivosEsp} onChange={(e) => set("objetivosEsp", e.target.value)} placeholder="Metas concretas a alcanzar (una por línea)." />
           </EdField>
-          <EdField label="Metas (cuantitativas)">
+          <EdField label="Metas (cuantitativas)" ai loading={sugiriendo === "metas"} onAi={() => sugerir("metas")}>
             <textarea className="ed-ta" rows={2} value={f.metas} onChange={(e) => set("metas", e.target.value)} placeholder="Ej.: 1 diagnóstico; 120 familias capacitadas; 1 plan comunal en 6 meses." />
           </EdField>
           <EdField label="Metodología de trabajo">
@@ -545,7 +568,7 @@ function Solicitud({ exp, onBack }: { exp: Expediente; onBack: () => void }) {
               <button className="stu-add" onClick={addStu}>+ Agregar estudiante</button>
             </div>
           </EdField>
-          <EdField label="Evaluación y monitoreo (indicadores)" ai onAi={() => set("evaluacion", SUG.evaluacion())}>
+          <EdField label="Evaluación y monitoreo (indicadores)" ai loading={sugiriendo === "evaluacion"} onAi={() => sugerir("evaluacion")}>
             <textarea className="ed-ta" rows={3} value={f.evaluacion} onChange={(e) => set("evaluacion", e.target.value)} placeholder="Indicadores de éxito y herramientas de seguimiento." />
           </EdField>
         </div>
