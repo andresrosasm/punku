@@ -23,7 +23,7 @@
 
 ## 2. Para quién
 
-**Cliente / entidad:** Universidad Nacional del Centro del Perú (UNCP) — sector público. Desafío 3, Hackatón Transformagob 2026. Lab: LAB UNCP Centro (Unidad de Modernización + Incubadora). Punto focal: Ing. Gerardo Aylas (gaylas@uncp.edu.pe).
+**Cliente / entidad:** Universidad Nacional del Centro del Perú (UNCP) — sector público. Desafío 3, Hackatón Transformagob 2026. Lab: LAB UNCP Centro (Unidad de Modernización + Incubadora). Punto focal: LAB UNCP Centro.
 
 **Usuarios ciudadanos (cara externa):** representantes de comunidades campesinas, urbanas y gobiernos locales de la provincia de Huancayo. Mayores de 18 años, líderes elegidos que rinden cuentas a su comunidad. Alfabetización digital diversa; usan smartphone pero con dominio variable; región multilingüe (español, quechua, asháninka, nomatsiguenga). Algunos en zonas con conectividad limitada.
 
