@@ -100,32 +100,53 @@ En la misma llamada, la IA evalúa si el input del ciudadano es **coherente y su
 
 > Criterio: la validación de calidad es responsabilidad **interna** (el coordinador completa o contacta por WhatsApp), no una barrera de entrada para el ciudadano.
 
+### Guardia anti-alucinación en la estructuración (construido)
+
+Una auditoría de los resúmenes de producción detectó que, con input **fino o basura**, la IA "rellenaba" el resumen **inventando** necesidades que el ciudadano no escribió (p. ej. agregar "demanda de sistemas de riego" sobre un pedido de baches) o elaboraba texto basura ("DEMO ejemplo", "asdsdadss") como si fuera un proyecto real; con input rico la IA era fiel. Se cerró en dos frentes, **solo en la estructuración del registro** (`estructurarNecesidad`) — el pulido de co-construcción (§6.quater) ya era fiel:
+
+1. **Regla anti-invención (prompt + esquema):** se instruye explícitamente reformular ÚNICAMENTE lo que el ciudadano escribió — sin agregar necesidades, cifras, temas, ubicaciones ni causas no presentes, y sin añadir un segundo problema "paralelo". Resúmenes escuetos para inputs escuetos.
+2. **Guardia de sustancia (reutiliza la MISMA de co-construcción):** tras estructurar, se invoca `evaluarSustanciaContexto` (juez Haiku + fallback determinista `pareceBasura`, §6.quater) sobre el texto del ciudadano. Si no tiene sustancia → `coherente=false` / `datos_incompletos=true`: se descarta el resumen y el expediente se rutea a co-construcción en vez de elaborar contenido inventado. Es la **misma** función de detección que usa la co-construcción, no una variante nueva.
+
+Verificado con Haiku real en producción: el caso de baches ya no inventa riego; la basura va a co-construcción con resumen-plantilla (sin proyecto inventado); los casos de input rico (posta de salud a tres horas, pozo contaminado) siguen fieles y completos, sin acortarse ni degradarse.
+
+> **Roadmap (no implementado, decisión deliberada):** la guardia de sustancia es algo agresiva con inputs **reales pero escuetos** (ej. "No tenemos buena electricidad"), que también enruta a co-construcción en lugar de producir un resumen corto. La dirección es segura (pregunta a la comunidad en vez de inventar) y ningún caso de input rico se ve afectado; afinar el umbral del juez de sustancia queda en el roadmap.
+
 ## 6.ter Sugerencias de IA en B4 (segunda capacidad, on-demand — construido)
 
-Además de la estructuración al crear (una sola llamada), el motor expone una capacidad **separada y bajo demanda** para el CRM: `sugerirCampoB4(expediente, campo)`. Desde B4 (spec 04), cada botón "✨ Sugerir con IA" dispara una llamada que redacta el campo académico pedido a partir del contexto del expediente. Son **cuatro campos**: objetivo general, objetivos específicos, metas, evaluación/indicadores.
+Además de la estructuración al crear (una sola llamada), el motor expone una capacidad **separada y bajo demanda** para el CRM: `sugerirCampoB4(expediente, campo)`. Desde B4 (spec 04), cada botón "✨ Sugerir con IA" dispara una llamada que redacta el campo académico pedido a partir del contexto del expediente. Son **seis campos**: objetivo general, objetivos específicos, metas, metodología, recursos, evaluación/indicadores.
 
 - Es IA **real** (Claude Haiku, server-side, sesión de coordinador requerida), con **fallback a plantilla** (`plantillaB4`) si la IA falla.
 - No contradice el principio de "una sola llamada" de §3: aquella aplica a la **creación** del expediente; estas son acciones explícitas y opcionales del coordinador dentro del CRM, una por clic.
 
-## 6.quater Co-construcción con el ciudadano por WhatsApp (tercera capacidad on-demand — construido)
+## 6.quater Co-construcción del CONTEXTO ciudadano por WhatsApp (tercera capacidad on-demand — construido)
 
-Cuando un expediente llega con poca información (relato pobre o vacío), faltan datos que **solo la comunidad tiene** (su meta real, plazos, aportes). El motor expone dos capacidades on-demand para co-construir esos datos vía WhatsApp, integradas en B4 (spec 04 §4):
+Cuando un expediente llega con poca información o con un problema **sin sustancia** (relato ininteligible o vacío), faltan datos de **contexto que solo la comunidad tiene**: cuál es su problema real, qué quiere lograr, a cuántas familias afecta y con qué puede aportar. El motor co-construye **ese contexto ciudadano** —nunca los campos académicos, que los redacta la UNCP con "Sugerir con IA" (§6.ter)— vía WhatsApp, integrado en B4 (spec 04 §4):
 
-1. **`generarPreguntasCoco(exp, camposLlenos)` → preguntas con opciones numeradas.** Claude Haiku (server-side, sesión de coordinador) arma 1–4 preguntas **dinámicas y específicas del caso**, cada una con 3 opciones (`label` en lenguaje ciudadano + `formal` en lenguaje institucional). **Fallback** a un banco estático por categoría si la IA falla. Verificado en producción: para un caso de salud genera "¿Con qué recursos cuenta la comunidad para apoyar las campañas médicas?"; para uno de agua, "¿Con qué pueden aportar para limpiar y cuidar el río?" — son generadas por Haiku, no del banco.
+1. **`generarPreguntasCoco(exp, camposLlenos)` → preguntas con opciones numeradas.** Pregunta SOLO por las dimensiones de **contexto ciudadano**: `problema | objetivo | familias | aportes`. Claude Haiku (server-side, sesión de coordinador) arma las pendientes, cada una con 3 opciones (`label` ciudadano + `formal` institucional); banco estático por categoría como fallback. Nunca pregunta por objetivo académico, metas, metodología, etc.
 
-2. **`interpretarRespuestaCoco(exp, preguntas, respuesta)` → updates por campo.** La comunidad responde por WhatsApp con números ("1 2 1 2"); un **parser determinista** (fuente fiable) mapea números↔opciones y compone el texto formal de cada campo de B4 (objetivo general, metas, recursos, metodología). Si hay IA, **Haiku pule** la redacción; el parser es el respaldo. Maneja respuestas sucias ("respondo 1, 2, y somos como 15").
+2. **Detección por SUSTANCIA, no por plantilla (construido).** Un problema puede ser **basura disfrazada**: un relato ininteligible que igual trae plantilla coherente y número de familias. `evaluarSustanciaContexto` —Claude Haiku como juez (`problema_claro`) con fallback determinista `pareceBasura`— evalúa la sustancia del relato/resumen y, si es insuficiente, agrega la dimensión `problema` a las preguntas. **Esta misma función la reutiliza la estructuración del registro (§6.bis)** para no elaborar inputs sin sustancia.
 
-### Filtrado: solo se pregunta lo genuinamente pendiente (construido)
+3. **`interpretarRespuestaCoco(exp, preguntas, respuesta)` → reconstruye el CONTEXTO del expediente.** La comunidad responde por números ("1 2 1 2"); un **parser determinista** mapea números↔opciones y reconstruye los campos de contexto del expediente: `resultado_deseado` (objetivo), `familias_afectadas`, `resumen_formal` (problema reconstruido) y el campo B4 `recursos` (aporte). Aparecen en la columna verde "Lo que ya sabemos" de B4 (spec 04). Si hay IA, **Haiku pule** el `resumen_formal` regenerado; el parser es el respaldo. Maneja respuestas sucias ("respondo 1, 2, y somos como 15").
 
-El generador **nunca repregunta lo que el ciudadano ya eligió con botones** ni lo que el coordinador ya completó en B4. `generarPreguntasCoco` recibe los campos ámbar ya llenos (`camposLlenos`) y descarta:
-- **Objetivo/meta** si el expediente ya trae `resultado_deseado` (la aspiración elegida en el paso E de la ingesta, spec 01).
-- **Plazo** si ya trae `urgencia_ciudadana` (elegida con botón).
-- **Beneficiarios** si ya trae `familias_afectadas`.
-- Cualquier campo de B4 ya redactado (a mano o con "Sugerir con IA").
+### El aporte comunitario en el contexto (fix construido)
 
-El filtro se aplica **tanto al banco estático como al prompt de Haiku** (se le instruye explícitamente omitir lo ya resuelto). Si tras filtrar no queda nada, el módulo muestra **"No hay nada pendiente que preguntar"** — no se inventan preguntas de relleno. Verificado en producción: en un caso bien-llenado el módulo solo pregunta lo nuevo (recursos/metodología) y omite meta/plazo.
+El aporte de la comunidad (dim `aportes`) no va solo al campo académico **Recursos**: también entra al **contexto** (`resumen_formal`, visible en "Lo que ya sabemos"). Dos caminos según el caso:
+- **Caso basura** (se reconstruye el problema): el aporte se incluye en el `resumen_formal` **regenerado**, que sí pasa por el pulido de Haiku.
+- **Caso bueno** (el resumen ya es válido): el aporte se **anexa de forma aditiva** al final del resumen existente, **sin reescribirlo y sin re-pasar por el pulido de Haiku** (preservando byte a byte el texto bueno); idempotente — no duplica si se reinterpreta.
 
-> Criterio: la co-construcción respeta el trabajo del ciudadano. Volver a preguntar lo que ya respondió con botones erosiona la confianza; el filtrado garantiza que cada pregunta por WhatsApp aporte información que el sistema realmente no tiene.
+> Criterio: un texto ya bueno NO se re-pasa por el LLM para enriquecerlo (lo reescribiría); solo el texto regenerado desde cero se pule. El anexo aditivo queda fuera del pulido.
+
+### Filtrado: solo se pregunta el contexto genuinamente pendiente (construido)
+
+El generador nunca repregunta lo que el ciudadano ya definió. `generarPreguntasCoco` recibe los campos ya llenos (`camposLlenos`) y descarta:
+- **Objetivo** si el expediente ya trae `resultado_deseado` (aspiración del paso E, spec 01).
+- **Familias** si ya trae `familias_afectadas`.
+- **Aportes** si el campo Recursos de B4 ya está lleno.
+- **Problema** si el problema tiene sustancia (no es basura).
+
+El filtro se aplica **tanto al banco como al prompt de Haiku**. Si tras filtrar no queda nada, muestra **"No hay contexto pendiente que preguntar"**. Verificado en producción.
+
+> Criterio: la co-construcción respeta el trabajo del ciudadano y se limita al contexto que solo la comunidad tiene; lo académico es trabajo de la UNCP. Cada pregunta por WhatsApp aporta información que el sistema realmente no tiene.
 
 ### Honestidad (rótulo obligatorio)
 
@@ -151,9 +172,10 @@ El módulo lleva un rótulo visible: en la **demo**, el coordinador pega manualm
 - [x] El motor está aislado tras una interfaz (migrable sin reescribir el sistema).
 - [x] La spec documenta la migración Claude → DeepSeek/Huawei para producción.
 - [x] La IA evalúa coherencia y marca `datos_incompletos` como aviso, sin bloquear la creación.
-- [x] Los cuatro botones "Sugerir con IA" de B4 usan IA real con fallback a plantilla.
-- [x] La co-construcción genera preguntas dinámicas (Haiku) con banco como fallback, e interpreta la respuesta con parser determinista + Haiku que pule.
-- [x] El filtrado no repregunta lo elegido con botones (aspiración/urgencia/familias) ni lo ya lleno en B4; si no falta nada, lo indica.
+- [x] Guardia anti-alucinación en la estructuración: regla anti-invención (prompt + esquema) + detección de sustancia (reutilizada de co-construcción) que rutea inputs sin sustancia a co-construcción en vez de inventar.
+- [x] Los seis botones "Sugerir con IA" de B4 (objetivo general, objetivos específicos, metas, metodología, recursos, evaluación) usan IA real con fallback a plantilla.
+- [x] La co-construcción pregunta SOLO contexto ciudadano (problema/objetivo/familias/aportes), detecta basura por sustancia, y reconstruye el contexto del expediente (no campos académicos); el aporte entra a "Lo que ya sabemos" (anexo aditivo en casos buenos, sin re-pulir).
+- [x] El filtrado no repregunta el contexto ya definido (aspiración/familias/aporte/problema con sustancia); si no falta nada, lo indica.
 
 ## 10. Lo que NO hace
 

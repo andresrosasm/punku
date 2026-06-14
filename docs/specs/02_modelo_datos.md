@@ -42,7 +42,7 @@ Definir la estructura de datos mínima y suficiente para que PUNKU capture, estr
 | titulo | text | Título tentativo del proyecto (derivado del relato; alimenta B4) |
 | objetivo_sugerido | text | Objetivo general sugerido por la IA (paso E + relato; alimenta B4) |
 | meta_sugerida | text | Meta cuantitativa tentativa sugerida por la IA (alimenta B4) |
-| datos_incompletos | bool | **(Construido)** Aviso de calidad: `true` si la IA detectó input incoherente/poco claro. NO bloquea la creación; solo señala al coordinador en el panel (ver spec 03/04). Default `false`. |
+| datos_incompletos | bool | **(Construido)** Aviso de calidad: `true` si la IA detectó input incoherente/poco claro o **sin sustancia** (guardia anti-alucinación del registro, spec 03 §6.bis). NO bloquea la creación; señala al coordinador en el panel (spec 03/04) y enruta a co-construcción, que lo vuelve `false` al reconstruir el contexto. Default `false`. |
 | creado_en | timestamp | Fecha de ingreso |
 | actualizado_en | timestamp | Última actualización de estado |
 
