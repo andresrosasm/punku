@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 // ¿Hay sesión activa? (lo usa /panel para decidir si muestra login o CRM)
 export async function GET(req: NextRequest) {
-  return NextResponse.json({ auth: tieneSesion(req) });
+  return NextResponse.json({ auth: tieneSesion(req) }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(req: NextRequest) {

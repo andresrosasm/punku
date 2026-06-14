@@ -12,6 +12,10 @@ import type { NecesidadInput, ContactoInput } from "@/lib/types";
 import { CATEGORIES, type CatId } from "@/lib/punku-data";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
+const NO_STORE = { "Cache-Control": "no-store, max-age=0, must-revalidate" };
 
 function clean(s: unknown, max = 1200): string {
   return String(s ?? "").slice(0, max).trim();
@@ -67,5 +71,5 @@ export async function POST(req: NextRequest) {
 export async function GET() {
   // Bandeja del CRM: lista de expedientes (sin datos de contacto).
   const expedientes = await listarExpedientes();
-  return NextResponse.json({ expedientes });
+  return NextResponse.json({ expedientes }, { headers: NO_STORE });
 }

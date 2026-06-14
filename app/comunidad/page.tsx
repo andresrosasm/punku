@@ -416,7 +416,7 @@ function Track({ lang, presetCode, onBack }: { lang: Lang; presetCode?: string; 
     if (!c.trim()) return;
     setLoading(true); setNotFound(false); setData(null);
     try {
-      const res = await fetch(`/api/estado?codigo=${encodeURIComponent(c.trim())}`);
+      const res = await fetch(`/api/estado?codigo=${encodeURIComponent(c.trim())}`, { cache: "no-store" });
       if (res.ok) setData(await res.json());
       else setNotFound(true);
     } catch { setNotFound(true); }

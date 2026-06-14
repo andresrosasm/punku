@@ -194,7 +194,7 @@ function Detalle({ lang, exp, onBack, onArmar, onEstado }: {
   };
   const revelar = async () => {
     try {
-      const res = await fetch(`/api/expedientes/${exp.codigo}/contacto`);
+      const res = await fetch(`/api/expedientes/${exp.codigo}/contacto`, { cache: "no-store" });
       if (res.ok) { const d = await res.json(); setContacto(d.contacto); }
       else flash("No se pudo acceder al contacto.");
     } catch { flash("No se pudo acceder al contacto."); }
@@ -566,7 +566,7 @@ export default function PanelPage() {
 
   const cargar = async () => {
     try {
-      const res = await fetch("/api/expedientes");
+      const res = await fetch("/api/expedientes", { cache: "no-store" });
       const d = await res.json();
       setRows(d.expedientes || []);
     } catch { setRows([]); }
@@ -575,7 +575,7 @@ export default function PanelPage() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/panel/login");
+        const res = await fetch("/api/panel/login", { cache: "no-store" });
         const d = await res.json();
         setAuth(!!d.auth);
         if (d.auth) cargar();

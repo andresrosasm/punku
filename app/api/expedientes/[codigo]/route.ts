@@ -11,14 +11,18 @@ import { tieneSesion } from "@/lib/panel-auth";
 import { ESTADOS, type EstadoId } from "@/lib/punku-data";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
+const NO_STORE = { "Cache-Control": "no-store, max-age=0, must-revalidate" };
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: { codigo: string } }
 ) {
   const data = await obtenerExpediente(params.codigo);
-  if (!data) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
-  return NextResponse.json(data);
+  if (!data) return NextResponse.json({ error: "No encontrado" }, { status: 404, headers: NO_STORE });
+  return NextResponse.json(data, { headers: NO_STORE });
 }
 
 export async function PATCH(
