@@ -5,8 +5,14 @@
 > sin viajar ni entender la burocracia. Traduce la necesidad de la comunidad a una
 > solicitud que la universidad entiende y puede rastrear.
 >
-> Prototipo para el **Desafío 3 — Hackatón GovTech 2026** (Lab UNCP Centro).
+> Prototipo para el **Desafío 3 — Hackatón Transformagob 2026** (Lab UNCP Centro).
 > Datos **100% ficticios** (declaración jurada del concurso).
+
+## 🔗 Pruébalo
+
+- **Demo en vivo:** https://punku-uncp.vercel.app
+- **Acceso al panel UNCP (demo para jurado):** usuario `coordinador` · clave `demo2026`
+- **Recomendado:** ver la cara comunidad en móvil, el panel UNCP en escritorio.
 
 ---
 
@@ -26,10 +32,11 @@ ciudadano lo ve al instante al consultar su código en `/comunidad`. Es el mismo
 
 ### Características
 - **Árbol de decisiones visual** ciudadano (categoría → problema → dónde → relato → aspiración) + **PUNKU Emergencias** + **toggle facilitador**.
-- **Motor de IA aislado** (`lib/ai.ts`): una llamada a Claude (Haiku) estructura la necesidad → JSON validado, **con fallback a reglas** si la IA falla. *La demo nunca se cae.* Además evalúa coherencia y marca `datos_incompletos` como **aviso** (nunca bloquea al ciudadano).
+- **Motor de IA aislado** (`lib/ai.ts`): una llamada a Claude (Haiku) estructura la necesidad → JSON validado, **con fallback a reglas** si la IA falla. *La demo nunca se cae.* Evalúa coherencia y marca `datos_incompletos` como **aviso** (nunca bloquea al ciudadano). **Guardia anti-alucinación:** la IA **solo reformula lo que el ciudadano dijo, nunca inventa necesidades**; y **detección de sustancia** — si el pedido llega vacío o ilegible, el sistema **pregunta a la comunidad** (co-construcción) en vez de rellenar con datos falsos.
 - **Tarjeta de Reconocimiento** ("Tu comunidad ya fue escuchada") con código de seguimiento.
 - **CRM con recorrido guiado**: bandeja con filtros y detalle del expediente como **flujo lineal** (stepper Recibido → En revisión → Derivado → Atendido → Cerrado + una acción principal por estado). **"Derivar" = notificar** a la facultad en un gesto (abre el correo con PDF+CSV adjuntos y pasa a *Derivado*). Botón **"Contactar por WhatsApp"** (teléfono real, server-side). Cada cambio de estado se refleja en la consulta del ciudadano.
-- **B4 — formato oficial UNCP** semi-llenado: cuatro botones **"Sugerir con IA"** (IA real con fallback), campos pendientes resaltados, y **persistencia en Supabase** (tabla `borradores_b4`) que alimenta el PDF y el correo.
+- **B4 — formato oficial UNCP** semi-llenado: **seis** botones **"Sugerir con IA"** (objetivo general, objetivos específicos, metas, metodología, recursos, evaluación — IA real con fallback), campos pendientes resaltados, y **persistencia en Supabase** (tabla `borradores_b4`) que alimenta el PDF y el correo.
+- **Co-construcción del contexto por WhatsApp** (co-creación, no buzón): cuando el pedido llega pobre o sin sustancia, la IA arma preguntas de **contexto ciudadano** —problema, qué quiere lograr, familias, aportes— con **opciones numeradas**; la comunidad responde por WhatsApp, el sistema **reconstruye el contexto** del expediente y el **aporte comunitario se integra al contexto**. Los campos **académicos los redacta la UNCP**; la comunidad aporta solo lo que únicamente ella sabe.
 - **Tablero** con donut por estado y barras por área.
 - **Bilingüe ES / QU** (quechua Wanka, borrador a validar con hablante nativo).
 - **Privacidad por diseño**: los datos de contacto viven aparte, nunca van a la IA, y solo el rol coordinador los ve.
@@ -141,4 +148,4 @@ traduce; no reemplaza la formalización ni toca ADESA (compatible vía exportaci
 
 [MIT](./LICENSE) — reutilizable por cualquier universidad, municipio o entidad pública.
 
-Hecho por **Andrés Rosas** para el Lab UNCP Centro · Hackatón GovTech 2026.
+Hecho por **Miguel Andrés Rosas Malpartida** · **Equipo Human in the Loop** · Lab UNCP Centro · Hackatón Transformagob 2026.
