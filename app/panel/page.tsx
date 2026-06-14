@@ -280,7 +280,11 @@ function Detalle({ lang, exp, b4Form, onBack, onArmar, onEstado }: {
 }) {
   const [estado, setEstado] = useState<EstadoId>(exp.estado);
   const [nota, setNota] = useState("");
-  const [destino, setDestino] = useState(exp.facultades_sugeridas[0] || FACULTADES[0]);
+  // La IA sugiere facultades con nombre largo ("Facultad de Medicina Humana");
+  // el selector usa los nombres canónicos de FACULTADES ("Medicina Humana").
+  // Mapeamos la sugerida a su opción canónica para que el select y el botón coincidan.
+  const destinoInicial = exp.facultades_sugeridas.map((s) => FACULTADES.find((f) => s.toLowerCase().includes(f.toLowerCase()))).find(Boolean) || FACULTADES[0];
+  const [destino, setDestino] = useState(destinoInicial);
   const [contacto, setContacto] = useState<{ nombre_representante: string; telefono: string } | null>(null);
   const [toast, setToast] = useState("");
   const [showCorreo, setShowCorreo] = useState(false);
