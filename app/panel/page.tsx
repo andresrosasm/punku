@@ -165,6 +165,84 @@ function Bandeja({ lang, rows, onOpen }: { lang: Lang; rows: Expediente[]; onOpe
   );
 }
 
+/* ---------- Utilidades de exportación / correo (B2) ---------- */
+// CSV de UN solo expediente (reutiliza la lógica del export de la bandeja, filtrada).
+function exportExpedienteCsv(exp: Expediente) {
+  const head = ["Código", "Comunidad", "Distrito", "Categoría", "Urgencia", "Estado", "Fecha", "Familias", "Facultades sugeridas", "ODS", "Resumen formal"];
+  const row = [exp.codigo, exp.comunidad, exp.distrito, catOf(exp.categoria)?.es || exp.categoria, exp.urgencia, exp.estado, exp.creado_en, exp.familias_afectadas, exp.facultades_sugeridas.join(" | "), exp.ods_sugerido, exp.resumen_formal];
+  const csv = [head.join(","), row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")].join("\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = `expediente-${exp.codigo}.csv`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// PDF del expediente en formato oficial UNCP (pre-llenado; campos académicos vacíos).
+function generarPdfExpediente(exp: Expediente) {
+  const modal = modalidadDe(exp);
+  const ods = ODS_MAP[exp.categoria] || "ODS 17 · Alianzas";
+  const form: B4Form = { objetivoGen: "", objetivosEsp: "", metas: "", metodologia: "", fechaIni: "2026-05-11", fechaFin: "2026-12-28", recursos: "", presupuesto: "", docente: "", evaluacion: "", estudiantes: [{ nombre: "", dni: "", codigo: "" }] };
+  const ctx = { area: AREA_MAP[exp.categoria] || "Intervención Tecnológica", modal, ods, justificacion: justificacionIA(exp, ods), fechaIni: form.fechaIni, fechaFin: form.fechaFin, form };
+  try {
+    const w = window.open("", "_blank", "width=900,height=1100");
+    if (!w) return;
+    w.document.write(uncpPrintHtml(exp, ctx)); w.document.close(); w.focus();
+    setTimeout(() => { try { w.print(); } catch {} }, 500);
+  } catch {}
+}
+
+/* ---------- Modal: Enviar a la facultad (simulación de correo, frontend puro) ---------- */
+function EnviarFacultadModal({ exp, onClose, onEnviado }: { exp: Expediente; onClose: () => void; onEnviado: () => void }) {
+  const facultad = exp.facultades_sugeridas.find((f) => !/otra entidad/i.test(f)) || "la facultad correspondiente";
+  const asunto = `Solicitud de proyección social — ${exp.comunidad} — deriva a ${facultad}`;
+  const cuerpo =
+    `${exp.resumen_formal}\n\n` +
+    `— Datos del caso —\n` +
+    `Comunidad: ${exp.comunidad}\n` +
+    `Distrito: ${exp.distrito}, Huancayo, Junín\n` +
+    `Familias afectadas: ${exp.familias_afectadas}\n` +
+    `Categoría: ${catOf(exp.categoria)?.es}\n` +
+    `Urgencia: ${exp.urgencia}\n` +
+    `Código de seguimiento: ${exp.codigo}`;
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+            <span className="armar-ico lg" style={{ width: 40, height: 40 }}><I.send s={18} /></span>
+            <div>
+              <h2 style={{ fontSize: 16, color: "var(--slate-900)" }}>Enviar a la facultad</h2>
+              <div style={{ fontSize: 12, color: "var(--slate-500)" }}>Vista previa del correo · {exp.codigo}</div>
+            </div>
+          </div>
+          <button className="modal-close" onClick={onClose} aria-label="Cerrar">×</button>
+        </div>
+        <div className="modal-body">
+          <div className="mail-row"><span className="ml">Para</span><span className="mv mail-placeholder">[correo de la oficina de proyección social de {facultad}]</span></div>
+          <div className="mail-row"><span className="ml">Asunto</span><span className="mv">{asunto}</span></div>
+          <div className="mail-row" style={{ borderBottom: "none", flexDirection: "column", gap: 4 }}>
+            <span className="ml">Cuerpo</span>
+            <div className="mail-body-box">{cuerpo}</div>
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--slate-400)", textTransform: "uppercase", letterSpacing: ".04em", marginTop: 14, marginBottom: 8 }}>Adjuntos</div>
+          <div className="mail-attachments">
+            <button className="attach-chip" onClick={() => generarPdfExpediente(exp)} title="Descargar / imprimir el PDF en formato UNCP"><span className="att-ico pdf">PDF</span> solicitud-{exp.codigo}.pdf</button>
+            <button className="attach-chip" onClick={() => exportExpedienteCsv(exp)} title="Descargar el CSV del expediente"><span className="att-ico csv">CSV</span> expediente-{exp.codigo}.csv</button>
+          </div>
+          <div className="mail-note">
+            <I.shield s={15} />
+            <span>Vista previa del correo. En producción, con el dominio institucional de la UNCP, este correo se envía automáticamente con un clic, adjuntando el PDF en formato oficial y el CSV. En esta demo, los archivos son reales y descargables; el envío es una simulación.</span>
+          </div>
+        </div>
+        <div className="modal-foot">
+          <button className="draft-btn ghost" onClick={onClose}>Cancelar</button>
+          <button className="mail-send-btn" onClick={() => { onEnviado(); onClose(); }}><I.send s={16} /> Enviar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- B2 Detalle ---------- */
 function KV({ label, value }: any) { return <div><div className="kv-label">{label}</div><div className="kv-val">{value}</div></div>; }
 function Detalle({ lang, exp, onBack, onArmar, onEstado }: {
@@ -176,6 +254,7 @@ function Detalle({ lang, exp, onBack, onArmar, onEstado }: {
   const [destino, setDestino] = useState(exp.facultades_sugeridas[0] || FACULTADES[0]);
   const [contacto, setContacto] = useState<{ nombre_representante: string; telefono: string } | null>(null);
   const [toast, setToast] = useState("");
+  const [showCorreo, setShowCorreo] = useState(false);
   const c = catOf(exp.categoria)!;
   const idx = ESTADOS.findIndex((e) => e.id === estado);
   const next = ESTADOS[idx + 1];
@@ -300,11 +379,16 @@ function Detalle({ lang, exp, onBack, onArmar, onEstado }: {
             <button className="derive-btn" onClick={derivar}><I.arrowUR s={15} /> Derivar a este destino</button>
           </div>
 
+          <button className="enviar-fac-btn" onClick={() => setShowCorreo(true)}>
+            <I.send s={16} /> Enviar a la facultad
+          </button>
+
           <div className="impact-note"><I.users s={16} /> Cada cambio aquí se refleja al instante en la consulta del ciudadano por su código.</div>
         </div>
       </div>
 
       {toast && <div className="crm-toast fade-in"><I.check s={16} /> {toast}</div>}
+      {showCorreo && <EnviarFacultadModal exp={exp} onClose={() => setShowCorreo(false)} onEnviado={() => flash("Correo preparado para la facultad ✓ (simulación)")} />}
     </div>
   );
 }
@@ -339,6 +423,15 @@ function Solicitud({ exp, onBack }: { exp: Expediente; onBack: () => void }) {
   const addStu = () => setF((p) => ({ ...p, estudiantes: [...p.estudiantes, { nombre: "", dni: "", codigo: "" }] }));
   const delStu = (i: number) => setF((p) => ({ ...p, estudiantes: p.estudiantes.filter((_, j) => j !== i) }));
   const wc = exp.titulo.trim().split(/\s+/).length;
+
+  // Progreso del formato oficial: el bloque pre-llenado por PUNKU es la base (~70%);
+  // los campos académicos editables suben el resto hasta 100%.
+  const editableChecks = [
+    !!f.objetivoGen.trim(), !!f.objetivosEsp.trim(), !!f.metas.trim(), !!f.metodologia.trim(),
+    !!(f.fechaIni && f.fechaFin), !!f.recursos.trim(), !!String(f.presupuesto).trim(),
+    !!f.docente.trim(), f.estudiantes.some((e) => e.nombre.trim()), !!f.evaluacion.trim(),
+  ];
+  const pct = Math.round(70 + (editableChecks.filter(Boolean).length / editableChecks.length) * 30);
 
   const generar = () => {
     const ctx = { area, modal, ods, justificacion: justif, fechaIni: f.fechaIni, fechaFin: f.fechaFin, form: f };
@@ -378,6 +471,14 @@ function Solicitud({ exp, onBack }: { exp: Expediente; onBack: () => void }) {
       <div className="b4-legend">
         <span><i className="dot g" /> Lo que ya sabemos — pre-llenado por PUNKU</span>
         <span><i className="dot a" /> Completa para formalizar — lo escribe la UNCP</span>
+      </div>
+
+      <div className="b4-progress">
+        <div className="b4-progress-top">
+          <span>Formato oficial completo al <strong>{pct}%</strong></span>
+          <span className="b4-progress-hint">{pct >= 100 ? "Listo para generar el PDF" : "Completa los campos de la derecha para llegar al 100%"}</span>
+        </div>
+        <div className="b4-progress-track"><div className="b4-progress-fill" style={{ width: pct + "%" }} /></div>
       </div>
 
       <div className="b4-grid">

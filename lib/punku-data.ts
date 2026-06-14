@@ -247,6 +247,9 @@ export const STR: Record<Lang, Record<string, string>> = {
     goal_words: "o cuéntalo con tus palabras", goal_talk: "hablando",
     urg_high: "Sí, urgente", urg_year: "Este año", urg_wait: "Puede esperar",
     goal_skip: "Prefiero no responder esto",
+    roadmap_audio: "Función de audio disponible en fase 2 (roadmap). Por ahora, escribe tu caso.",
+    roadmap_foto: "Carga de fotos disponible en fase 2 (roadmap).",
+    roadmap_codigo: "Recuperación por nombre y comunidad disponible en fase 2 (roadmap).",
   },
   qu: {
     tag_ciudadano: "Ayllup punkun",
@@ -292,6 +295,9 @@ export const STR: Record<Lang, Record<string, string>> = {
     goal_words: "utaq shimiykiwan willay", goal_talk: "rimaspa",
     urg_high: "Arí, utqaymi", urg_year: "Kay watapi", urg_wait: "Suyananchikman",
     goal_skip: "Manaña kutichiyta munanichu",
+    roadmap_audio: "Limay willakuy fase 2-pi kanqa (roadmap). Kunanqa, caseykita qillqay.",
+    roadmap_foto: "Foto churay fase 2-pi kanqa (roadmap).",
+    roadmap_codigo: "Sutiwan, aylluwan maskay fase 2-pi kanqa (roadmap).",
   },
 };
 

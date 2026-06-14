@@ -432,6 +432,45 @@ h1,h2,h3,h4{font-family:var(--font-head);margin:0;font-weight:700;letter-spacing
 .login-btn{width:100%;margin-top:16px;background:var(--green-700);color:#fff;border-radius:11px;padding:12px;font-weight:600;font-size:14px;font-family:var(--font-head);}
 .login-btn:hover{background:var(--green-800);}
 
+/* ---- Toast ciudadano (roadmap fase 2) ---- */
+.cz-toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);width:calc(100% - 36px);max-width:380px;background:var(--ink);color:#fff;
+  padding:13px 16px;border-radius:14px;font-size:13.5px;font-weight:500;line-height:1.45;display:flex;align-items:flex-start;gap:10px;box-shadow:var(--shadow-lg);z-index:95;}
+.cz-toast svg{color:var(--gold-300);flex:none;margin-top:1px;}
+
+/* ---- B4: barra de progreso del formato oficial ---- */
+.b4-progress{background:#fff;border:1px solid var(--slate-200);border-radius:12px;padding:13px 16px;margin-bottom:14px;box-shadow:var(--shadow-sm);}
+.b4-progress-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px;font-size:13px;color:var(--slate-600);flex-wrap:wrap;}
+.b4-progress-top strong{color:var(--green-700);font-family:var(--font-head);font-size:15px;}
+.b4-progress-hint{font-size:11.5px;color:var(--slate-400);}
+.b4-progress-track{height:10px;background:var(--slate-100);border-radius:99px;overflow:hidden;}
+.b4-progress-fill{height:100%;background:linear-gradient(90deg,var(--green-500),var(--green-700));border-radius:99px;transition:width .45s cubic-bezier(.4,0,.1,1);}
+
+/* ---- Modal: Enviar a la facultad (simulación de correo) ---- */
+.modal-overlay{position:fixed;inset:0;background:rgba(20,18,14,.5);z-index:100;display:flex;align-items:center;justify-content:center;padding:24px;animation:fadeIn .2s ease;}
+.modal-card{background:#fff;border-radius:18px;box-shadow:var(--shadow-lg);width:100%;max-width:600px;max-height:88vh;overflow:auto;}
+.modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;border-bottom:1px solid var(--slate-100);background:linear-gradient(135deg,#fff,#F4F8F5);position:sticky;top:0;}
+.modal-close{width:30px;height:30px;border-radius:8px;background:var(--slate-100);color:var(--slate-500);font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;flex:none;}
+.modal-close:hover{background:var(--slate-200);color:var(--slate-700);}
+.modal-body{padding:18px 20px;}
+.mail-row{display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--slate-100);font-size:13px;}
+.mail-row .ml{min-width:64px;color:var(--slate-400);font-weight:700;text-transform:uppercase;font-size:10.5px;letter-spacing:.05em;padding-top:3px;flex:none;}
+.mail-row .mv{flex:1;color:var(--slate-700);line-height:1.5;}
+.mail-placeholder{color:var(--slate-400);font-style:italic;}
+.mail-body-box{background:var(--slate-50);border:1px solid var(--slate-200);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--slate-700);line-height:1.55;white-space:pre-wrap;}
+.mail-attachments{display:flex;gap:10px;flex-wrap:wrap;}
+.attach-chip{display:inline-flex;align-items:center;gap:9px;background:#fff;border:1.5px solid var(--slate-200);border-radius:10px;padding:8px 12px;font-size:12.5px;font-weight:600;color:var(--slate-700);font-family:var(--font-head);transition:all .14s;}
+.attach-chip:hover{border-color:var(--green-300);color:var(--green-700);box-shadow:var(--shadow-sm);}
+.attach-chip .att-ico{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;flex:none;font-size:9.5px;font-weight:800;letter-spacing:.02em;}
+.attach-chip .att-ico.pdf{background:var(--red-600);}
+.attach-chip .att-ico.csv{background:var(--green-700);}
+.mail-note{display:flex;gap:9px;font-size:12px;color:var(--slate-600);background:var(--gold-100);border:1px solid var(--gold-200);border-radius:10px;padding:11px 13px;margin-top:14px;line-height:1.5;}
+.mail-note svg{color:var(--gold-600);flex:none;margin-top:1px;}
+.modal-foot{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:1px solid var(--slate-100);position:sticky;bottom:0;background:#fff;}
+.mail-send-btn{display:inline-flex;align-items:center;gap:8px;background:var(--green-700);color:#fff;font-family:var(--font-head);font-weight:600;font-size:13.5px;border-radius:11px;padding:11px 20px;box-shadow:0 6px 16px rgba(46,107,78,.24);transition:background .15s;}
+.mail-send-btn:hover{background:var(--green-800);}
+.enviar-fac-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;background:#fff;color:var(--green-700);border:1.5px solid var(--green-300);border-radius:11px;padding:12px;font-weight:600;font-size:13.5px;font-family:var(--font-head);transition:all .14s;}
+.enviar-fac-btn:hover{background:var(--green-50);border-color:var(--green-500);}
+
 /* responsive: en pantallas chicas el CRM apila el rail arriba */
 @media (max-width:760px){
   .crm-shell{flex-direction:column;}

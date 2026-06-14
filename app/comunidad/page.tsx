@@ -42,7 +42,26 @@ function CzBar({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
           <button key={l} className={lang === l ? "active" : ""} onClick={() => setLang(l)}>{l.toUpperCase()}</button>
         ))}
       </div>
-      <Link href="/panel" className="face-link" title="Vista institucional (demo)">UNCP <I.arrowUR s={13} /></Link>
+      {/* El ciudadano NO tiene acceso al panel interno: se quitó el atajo "UNCP".
+          El logo PUNKU ya regresa a la puerta (/). */}
+    </div>
+  );
+}
+
+/* ---------- Toast ligero de la cara ciudadana (mensajes de roadmap fase 2) ----------
+   Host montado una vez; cualquier componente llama czNotify() sin pasar props. */
+let _czNotify: ((msg: string) => void) | null = null;
+function czNotify(msg: string) { _czNotify?.(msg); }
+function CzToastHost() {
+  const [msg, setMsg] = useState("");
+  useEffect(() => {
+    _czNotify = (m) => { setMsg(m); window.setTimeout(() => setMsg(""), 3800); };
+    return () => { _czNotify = null; };
+  }, []);
+  if (!msg) return null;
+  return (
+    <div className="cz-toast fade-in" role="status">
+      <I.clock s={16} /> <span>{msg}</span>
     </div>
   );
 }
@@ -187,7 +206,7 @@ function StepD({ lang, detalle, setDetalle, onNext, onBack }: any) {
       <h1>{t("stepD_q", lang)}</h1>
       <p style={{ color: "var(--ink-70)", fontSize: 14.5, marginTop: 8 }}>{t("stepD_hint", lang)}</p>
       <textarea value={detalle} onChange={(e) => setDetalle(e.target.value)} className="ta" rows={5} placeholder={t("stepD_ph", lang)} />
-      <button className="audio-btn"><I.mic s={20} /> {t("stepD_audio", lang)}</button>
+      <button className="audio-btn" onClick={() => czNotify(t("roadmap_audio", lang))}><I.mic s={20} /> {t("stepD_audio", lang)}</button>
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 22 }}>
         <button className="btn btn-lg btn-green" onClick={onNext}>{t("next", lang)} <I.arrowR s={20} /></button>
         <button onClick={onNext} style={{ textAlign: "center", color: "var(--ink-50)", fontSize: 14, fontWeight: 600, padding: 6 }}>{t("skip", lang)}</button>
@@ -226,7 +245,7 @@ function StepGoal({ lang, cat, aspiracion, setAspiracion, urgencia, setUrgencia,
 
       <div className="goal-alt">
         <button onClick={() => setShowText((s) => !s)} className={showText ? "on" : ""}>✏️ {t("goal_words", lang)}</button>
-        <button><I.mic s={14} /> {t("goal_talk", lang)}</button>
+        <button onClick={() => czNotify(t("roadmap_audio", lang))}><I.mic s={14} /> {t("goal_talk", lang)}</button>
       </div>
       {showText && (
         <textarea autoFocus value={isChip ? "" : aspiracion} onChange={(e) => setAspiracion(e.target.value)} className="ta" rows={3} placeholder={ph} style={{ marginTop: 4 }} />
@@ -448,7 +467,7 @@ function Track({ lang, presetCode, onBack }: { lang: Lang; presetCode?: string; 
         <button className="btn btn-lg btn-green" style={{ marginTop: 12 }} onClick={() => buscar(code)} disabled={!code || loading}>
           {loading ? "…" : t("track_btn", lang)}
         </button>
-        <button style={{ display: "block", margin: "14px auto 0", color: "var(--ink-50)", fontSize: 13.5, fontWeight: 600 }}>{t("track_lost", lang)}</button>
+        <button onClick={() => czNotify(t("roadmap_codigo", lang))} style={{ display: "block", margin: "14px auto 0", color: "var(--ink-50)", fontSize: 13.5, fontWeight: 600 }}>{t("track_lost", lang)}</button>
 
         {notFound && (
           <p style={{ marginTop: 18, textAlign: "center", color: "var(--terra-700)", fontSize: 14 }}>{t("track_notfound", lang)}</p>
@@ -525,7 +544,7 @@ function Emergency({ lang, onFinish, onBack }: { lang: Lang; onFinish: (p: Paylo
         <label className="fld-label" style={{ marginTop: 16 }}>{t("emerg_contact", lang)}</label>
         <div className="fld"><span style={{ color: "var(--red-600)", display: "flex" }}><I.phone s={20} /></span>
           <input value={f.contacto} onChange={(e) => set("contacto", e.target.value)} placeholder="Nombre y número" style={{ flex: 1, border: "none", background: "transparent", padding: "15px 10px", fontSize: 16, outline: "none" }} /></div>
-        <button className="photo-btn"><I.camera s={20} /> {t("emerg_photo", lang)}</button>
+        <button className="photo-btn" onClick={() => czNotify(t("roadmap_foto", lang))}><I.camera s={20} /> {t("emerg_photo", lang)}</button>
         <button className="btn btn-lg btn-red" style={{ marginTop: 18 }} disabled={!ok} onClick={submit}><I.send s={18} /> {t("emerg_send", lang)}</button>
       </div>
     </div>
@@ -582,6 +601,7 @@ export default function ComunidadPage() {
     <main className="cz-shell">
       {showBar && <CzBar lang={lang} setLang={setLang} />}
       <div className="cz-screen">{content}</div>
+      <CzToastHost />
     </main>
   );
 }
