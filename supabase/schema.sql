@@ -91,6 +91,7 @@ create table if not exists public.borradores_b4 (
   docente_asesor         text,
   evaluacion             text,
   estudiantes            jsonb not null default '[]'::jsonb,
+  listo_para_derivar     boolean not null default false,        -- B4 marcada lista para derivar
   actualizado_en         timestamptz not null default now()
 );
 create index if not exists idx_borradores_b4_expediente on public.borradores_b4(expediente_id);

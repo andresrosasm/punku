@@ -19,6 +19,7 @@ interface DBShape {
   historial: Map<string, EstadoHistorial[]>;
   contactos: Map<string, ContactoInput>; // SENSIBLE — solo server
   borradores: Map<string, B4Form>;       // borrador de B4 por código
+  preparados: Map<string, boolean>;      // B4 marcada lista para derivar
   correlativo: number;
   seeded: boolean;
 }
@@ -27,7 +28,7 @@ const g = globalThis as unknown as { __PUNKU_DB__?: DBShape };
 
 function db(): DBShape {
   if (!g.__PUNKU_DB__) {
-    g.__PUNKU_DB__ = { expedientes: new Map(), historial: new Map(), contactos: new Map(), borradores: new Map(), correlativo: 0, seeded: false };
+    g.__PUNKU_DB__ = { expedientes: new Map(), historial: new Map(), contactos: new Map(), borradores: new Map(), preparados: new Map(), correlativo: 0, seeded: false };
   }
   if (!g.__PUNKU_DB__.seeded) seed(g.__PUNKU_DB__);
   return g.__PUNKU_DB__;
@@ -40,22 +41,26 @@ function seed(d: DBShape) {
     const canal_origen = s.canal === "PUNKU Emergencias" ? "emergencias" : "web";
     const exp: Expediente = {
       codigo: s.codigo, comunidad: s.comunidad, distrito: s.distrito, familias_afectadas: s.familias,
-      necesidad_texto: s.resumen, categoria: s.cat, facultades_sugeridas: s.facultades,
+      necesidad_texto: s.relato ?? s.resumen, categoria: s.cat, facultades_sugeridas: s.facultades,
       ods_sugerido: ODS_MAP[s.cat] || "ODS 17 · Alianzas", resultado_deseado: s.aspiracion,
       urgencia_ciudadana: s.urgencia === "alta" ? "alta" : s.urgencia === "media" ? "anio" : "espera",
       foto_url: null, modalidad: s.modalidad, urgencia: s.urgencia, resumen_formal: s.resumen,
       estado: s.estado, canal_origen, origen_registro: "ciudadano", clasificado_por: "ia",
       confianza: s.confianza / 100, titulo: s.titulo,
-      objetivo_sugerido: `Contribuir a que ${s.comunidad} logre: ${s.aspiracion.replace(/\.$/, "")}, con el acompañamiento de la UNCP.`,
+      objetivo_sugerido: s.aspiracion ? `Contribuir a que ${s.comunidad} logre: ${s.aspiracion.replace(/\.$/, "")}, con el acompañamiento de la UNCP.` : "",
       meta_sugerida: `${s.familias} familias beneficiadas y un plan de trabajo en 6 meses.`,
-      datos_incompletos: false,
+      datos_incompletos: s.datos_incompletos ?? false,
       creado_en: s.fecha, actualizado_en: s.fecha,
     };
     d.expedientes.set(exp.codigo, exp);
     const hist: EstadoHistorial[] = [];
     for (let i = 0; i <= idx; i++) hist.push({ estado: ESTADOS[i].id, nota: i === 0 ? "Expediente creado." : "", fecha: s.fecha });
     d.historial.set(exp.codigo, hist);
-    d.contactos.set(exp.codigo, { nombre_representante: "(dato ficticio reservado)", telefono: "9XX XXX XXX", comunidad: s.comunidad, es_facilitador: false });
+    d.contactos.set(exp.codigo, {
+      nombre_representante: /reservado/i.test(s.representante) ? "(dato ficticio reservado)" : s.representante,
+      telefono: /\d/.test(s.telefono) ? s.telefono : "9XX XXX XXX",
+      comunidad: s.comunidad, es_facilitador: false,
+    });
     const n = parseInt(s.codigo.split("-")[2], 10);
     if (!isNaN(n) && n > max) max = n;
   }
@@ -138,10 +143,15 @@ export async function revelarContacto(codigo: string): Promise<ContactoInput | n
 }
 
 /* ---------- Borrador de B4 (en memoria) ---------- */
-export async function cargarBorrador(codigo: string): Promise<B4Form | null> {
-  return db().borradores.get(codigo.trim().toUpperCase()) || null;
+export async function cargarBorrador(codigo: string): Promise<{ form: B4Form; listo: boolean } | null> {
+  const k = codigo.trim().toUpperCase();
+  const form = db().borradores.get(k);
+  if (!form) return null;
+  return { form, listo: db().preparados.get(k) || false };
 }
-export async function guardarBorrador(codigo: string, form: B4Form): Promise<boolean> {
-  db().borradores.set(codigo.trim().toUpperCase(), form);
+export async function guardarBorrador(codigo: string, form: B4Form, listo: boolean): Promise<boolean> {
+  const k = codigo.trim().toUpperCase();
+  db().borradores.set(k, form);
+  db().preparados.set(k, listo);
   return true;
 }

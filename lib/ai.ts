@@ -296,3 +296,230 @@ export async function sugerirCampoB4(exp: Expediente, campo: CampoB4): Promise<S
     return { coherente: true, texto: plantillaB4(exp, campo), motivo: "", generado_por: "plantilla" };
   }
 }
+
+/* ============================================================
+   CO-CONSTRUCCIÓN POR WHATSAPP (spec handoff §3)
+   ------------------------------------------------------------
+   La IA genera preguntas con opciones numeradas para datos que SOLO la
+   comunidad tiene (su meta, plazos, aportes). El coordinador las manda por
+   WhatsApp; la comunidad responde con números; un parser DETERMINISTA traduce
+   esas elecciones a texto formal de B4. Si hay IA, pule la redacción.
+   El parser es la fuente fiable: la demo nunca se cae.
+   ============================================================ */
+export interface CocoOption { label: string; formal: string }
+export interface CocoPregunta { field: string; q: string; options: CocoOption[] }
+const COCO_FIELDS = ["objetivoGen", "metas", "recursos", "metodologia"];
+
+/** Banco de preguntas por categoría (fallback / demo). En producción lo genera Haiku. */
+function bancoPreguntas(exp: Expediente): CocoPregunta[] {
+  const infra: CocoPregunta[] = [
+    { field: "objetivoGen", q: "¿Cuál es su meta principal?", options: [
+      { label: "Tener un local comunal con buena electricidad", formal: "contar con un local comunal dotado de servicio eléctrico confiable, que funcione como centro de servicios e integración" },
+      { label: "Mejorar la red eléctrica de las casas", formal: "mejorar y ampliar la red de distribución eléctrica domiciliaria de la comunidad" },
+      { label: "Ambas cosas", formal: "mejorar el abastecimiento eléctrico y, a la vez, contar con un local comunal que concentre los servicios" },
+    ] },
+    { field: "metas", q: "¿En cuánto tiempo lo necesitan?", options: [
+      { label: "Urgente, este mes", formal: "atención urgente en el plazo de 1 mes" },
+      { label: "Este año", formal: "ejecución dentro del presente año (horizonte de 6 a 12 meses)" },
+      { label: "Puede esperar al próximo año", formal: "ejecución planificada para el próximo periodo" },
+    ] },
+    { field: "recursos", q: "¿Cuántas personas de la comunidad ayudarían en la obra?", options: [
+      { label: "Pocas (5–10)", formal: "aporte de mano de obra comunal de 5 a 10 personas" },
+      { label: "Varias (10–30)", formal: "aporte de mano de obra comunal de 10 a 30 personas" },
+      { label: "Muchas (30+)", formal: "aporte de mano de obra comunal de más de 30 personas" },
+    ] },
+    { field: "metodologia", q: "¿Con qué ya cuentan ustedes?", options: [
+      { label: "Terreno para el local", formal: "la comunidad aporta el terreno saneado para la edificación" },
+      { label: "Algunos materiales", formal: "la comunidad aporta parte de los materiales de construcción" },
+      { label: "Solo mano de obra", formal: "la comunidad aporta principalmente mano de obra y organización" },
+    ] },
+  ];
+  const generico: CocoPregunta[] = [
+    { field: "objetivoGen", q: "¿Cuál es su meta principal?", options: [
+      { label: "Resolver el problema de raíz", formal: "dar solución integral y sostenible a la necesidad planteada" },
+      { label: "Una mejora rápida por ahora", formal: "lograr una mejora inmediata que alivie la situación" },
+      { label: "Capacitarnos para hacerlo nosotros", formal: "fortalecer capacidades locales para sostener la solución en el tiempo" },
+    ] },
+    { field: "metas", q: "¿En cuánto tiempo lo necesitan?", options: [
+      { label: "Urgente, este mes", formal: "atención urgente en el plazo de 1 mes" },
+      { label: "Este año", formal: "ejecución dentro del presente año" },
+      { label: "Puede esperar", formal: "ejecución planificada a mediano plazo" },
+    ] },
+    { field: "recursos", q: "¿Cuántas personas de la comunidad participarían?", options: [
+      { label: "Pocas (5–10)", formal: "participación de 5 a 10 personas de la comunidad" },
+      { label: "Varias (10–30)", formal: "participación de 10 a 30 personas de la comunidad" },
+      { label: "Muchas (30+)", formal: "participación de más de 30 personas de la comunidad" },
+    ] },
+  ];
+  return exp.categoria === "infra" ? infra : generico;
+}
+
+function validarPreguntas(arr: any): arr is CocoPregunta[] {
+  return Array.isArray(arr) && arr.length > 0 && arr.length <= 6 && arr.every((q) =>
+    q && COCO_FIELDS.includes(q.field) && typeof q.q === "string" && q.q.length > 3 &&
+    Array.isArray(q.options) && q.options.length >= 2 && q.options.length <= 4 &&
+    q.options.every((o: any) => o && typeof o.label === "string" && typeof o.formal === "string"));
+}
+
+const PREGUNTAS_SCHEMA = {
+  name: "armar_preguntas",
+  description: "Arma 3 a 4 preguntas con opciones numeradas para que una comunidad rural responda con números, para completar su solicitud.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      preguntas: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            field: { type: "string", enum: COCO_FIELDS, description: "Campo de B4 que esta pregunta ayuda a llenar." },
+            q: { type: "string", description: "Pregunta en lenguaje simple y cercano." },
+            options: {
+              type: "array",
+              items: { type: "object", properties: { label: { type: "string", description: "Opción simple para el ciudadano." }, formal: { type: "string", description: "Fragmento en lenguaje institucional UNCP." } }, required: ["label", "formal"] },
+            },
+          },
+          required: ["field", "q", "options"],
+        },
+      },
+    },
+    required: ["preguntas"],
+  },
+};
+
+/* Solo se pregunta lo GENUINAMENTE pendiente: nunca lo que el ciudadano ya eligió
+   con botones (aspiración -> objetivoGen, urgencia -> metas/plazo, familias) ni lo
+   que el coordinador ya llenó en B4 (campos ámbar pasados en `camposLlenos`). */
+function camposPendientesCoco(exp: Expediente, camposLlenos: string[]): string[] {
+  const resueltos = new Set<string>((camposLlenos || []).filter((c) => COCO_FIELDS.includes(c)));
+  if (exp.resultado_deseado && exp.resultado_deseado.trim()) resueltos.add("objetivoGen"); // la comunidad ya dio su meta
+  if (exp.urgencia_ciudadana && exp.urgencia_ciudadana.trim()) resueltos.add("metas");      // ya eligió plazo/urgencia
+  return COCO_FIELDS.filter((f) => !resueltos.has(f));
+}
+
+export async function generarPreguntasCoco(exp: Expediente, camposLlenos: string[] = []): Promise<{ preguntas: CocoPregunta[]; generado_por: "ia" | "banco" | "ninguno" }> {
+  const pendientes = camposPendientesCoco(exp, camposLlenos);
+  // Si la comunidad y el coordinador ya cubrieron todo, no se inventan preguntas.
+  if (pendientes.length === 0) return { preguntas: [], generado_por: "ninguno" };
+
+  const banco = () => bancoPreguntas(exp).filter((q) => pendientes.includes(q.field));
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { preguntas: banco(), generado_por: "banco" };
+
+  try {
+    const client = new Anthropic({ apiKey });
+    const yaResuelto: string[] = [];
+    if (exp.resultado_deseado && exp.resultado_deseado.trim()) yaResuelto.push(`la META/objetivo (la comunidad ya la indicó: "${exp.resultado_deseado}")`);
+    if (exp.urgencia_ciudadana && exp.urgencia_ciudadana.trim()) yaResuelto.push(`el PLAZO/urgencia (la comunidad ya lo eligió)`);
+    if (exp.familias_afectadas) yaResuelto.push(`el número de FAMILIAS beneficiarias (${exp.familias_afectadas})`);
+    const FIELD_DESC: Record<string, string> = { objetivoGen: "objetivoGen (su meta principal)", metas: "metas (plazo)", recursos: "recursos (aportes/personas)", metodologia: "metodologia (con qué cuentan)" };
+
+    const prompt =
+      `Eres asistente de la Dirección de Proyección Social de la UNCP. Una comunidad rural de Huancayo registró una necesidad y faltan datos que SOLO la comunidad tiene.\n` +
+      `Arma preguntas MUY simples (1 a ${pendientes.length}), con 3 opciones numeradas cada una, para que la comunidad responda por WhatsApp escribiendo números (ej. "1 2 1").\n` +
+      `Genera preguntas SOLO para estos campos pendientes: ${pendientes.map((f) => FIELD_DESC[f] || f).join(", ")}.\n` +
+      (yaResuelto.length ? `NO vuelvas a preguntar por nada de esto, que la comunidad YA resolvió con botones: ${yaResuelto.join("; ")}.\n` : "") +
+      `Para cada opción da: label (lo que lee el ciudadano, simple) y formal (el mismo sentido en lenguaje institucional para el formato UNCP).\n\n` +
+      `Comunidad: ${exp.comunidad} (${exp.distrito}, Huancayo)\n` +
+      `Área tentativa: ${catOf(exp.categoria)?.es || exp.categoria}\n` +
+      `Lo que se sabe: ${exp.resumen_formal}\n` +
+      `Relato de la comunidad: ${exp.necesidad_texto || "(muy breve)"}\n\n` +
+      `Usa la herramienta armar_preguntas.`;
+
+    const resp = await withTimeout(
+      client.messages.create({ model: MODEL, max_tokens: 1024, tools: [PREGUNTAS_SCHEMA], tool_choice: { type: "tool", name: PREGUNTAS_SCHEMA.name }, messages: [{ role: "user", content: prompt }] }),
+      TIMEOUT_MS
+    );
+    const block = resp.content.find((b) => b.type === "tool_use") as { type: "tool_use"; input: any } | undefined;
+    if (block && validarPreguntas(block.input?.preguntas)) {
+      // Refuerzo determinista: aunque la IA se desvíe, se descarta lo ya resuelto.
+      const filtered = (block.input.preguntas as CocoPregunta[]).filter((q) => pendientes.includes(q.field)).slice(0, 4);
+      if (filtered.length === 0) return { preguntas: banco(), generado_por: "banco" };
+      return { preguntas: filtered, generado_por: "ia" };
+    }
+    return { preguntas: banco(), generado_por: "banco" };
+  } catch {
+    return { preguntas: banco(), generado_por: "banco" };
+  }
+}
+
+export interface CocoResumen { q: string; choiceLabel: string; field: string }
+
+/** Parser DETERMINISTA (handoff §3.4): mapea números↔opciones y compone texto formal por campo. */
+function interpretarDeterminista(exp: Expediente, preguntas: CocoPregunta[], respuesta: string): { updates: Record<string, string>; resumen: CocoResumen[] } {
+  const nums = (respuesta.match(/\d+/g) || []).map(Number);
+  const resumen: CocoResumen[] = [];
+  const byField: Record<string, string> = {};
+  preguntas.forEach((q, i) => {
+    const n = nums[i];
+    if (!n) return;
+    let choice: CocoOption, extra = "";
+    if (n >= 1 && n <= q.options.length) { choice = q.options[n - 1]; }
+    else { choice = q.options[q.options.length - 1]; extra = ` (la comunidad indicó ${n})`; }
+    resumen.push({ q: q.q, choiceLabel: choice.label + (extra ? ` · ${n}` : ""), field: q.field });
+    const phrase = choice.formal + extra;
+    byField[q.field] = byField[q.field] ? `${byField[q.field]}; ${phrase}` : phrase;
+  });
+  const fam = exp.familias_afectadas || "las";
+  const updates: Record<string, string> = {};
+  Object.keys(byField).forEach((field) => {
+    if (field === "objetivoGen") {
+      updates.objetivoGen = `Contribuir a que ${exp.comunidad} logre ${byField.objetivoGen}, con el acompañamiento técnico y académico de la UNCP, en beneficio de ${fam} familias de ${exp.distrito}.`;
+    } else if (field === "metas") {
+      updates.metas = `Plazo acordado con la comunidad: ${byField.metas}. Meta: atender a ${fam} familias beneficiarias dentro de ese periodo.`;
+    } else if (field === "recursos") {
+      updates.recursos = `Aporte de la comunidad: ${byField.recursos}. La UNCP aporta asesoría técnica y acompañamiento de estudiantes y docente.`;
+    } else if (field === "metodologia") {
+      const t = byField.metodologia;
+      updates.metodologia = `Trabajo participativo por fases (diagnóstico, diseño, ejecución, evaluación). ${t.charAt(0).toUpperCase() + t.slice(1)}.`;
+    } else {
+      updates[field] = byField[field];
+    }
+  });
+  return { updates, resumen };
+}
+
+const PULIR_SCHEMA = {
+  name: "pulir_campos",
+  description: "Mejora la redacción institucional de cada texto, manteniendo EXACTAMENTE el mismo sentido y los datos. No inventa información nueva.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      campos: { type: "array", items: { type: "object", properties: { field: { type: "string" }, texto: { type: "string" } }, required: ["field", "texto"] } },
+    },
+    required: ["campos"],
+  },
+};
+
+export async function interpretarRespuestaCoco(exp: Expediente, preguntas: CocoPregunta[], respuesta: string): Promise<{ updates: Record<string, string>; resumen: CocoResumen[]; generado_por: "parser" | "ia" }> {
+  const base = interpretarDeterminista(exp, preguntas, respuesta);
+  if (Object.keys(base.updates).length === 0) return { ...base, generado_por: "parser" };
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { ...base, generado_por: "parser" };
+  try {
+    const client = new Anthropic({ apiKey });
+    const entradas = Object.entries(base.updates).map(([field, texto]) => `- ${field}: ${texto}`).join("\n");
+    const prompt =
+      `Eres redactor de la Dirección de Proyección Social de la UNCP. Pule la redacción de estos campos de un proyecto, ` +
+      `manteniendo EXACTAMENTE el mismo sentido, los mismos datos y sin inventar nada nuevo. Devuelve cada campo con su mismo identificador.\n\n${entradas}\n\nUsa la herramienta pulir_campos.`;
+    const resp = await withTimeout(
+      client.messages.create({ model: MODEL, max_tokens: 700, tools: [PULIR_SCHEMA], tool_choice: { type: "tool", name: PULIR_SCHEMA.name }, messages: [{ role: "user", content: prompt }] }),
+      TIMEOUT_MS
+    );
+    const block = resp.content.find((b) => b.type === "tool_use") as { type: "tool_use"; input: any } | undefined;
+    const campos = block?.input?.campos;
+    if (Array.isArray(campos)) {
+      const pulido = { ...base.updates };
+      for (const c of campos) {
+        if (c && typeof c.field === "string" && typeof c.texto === "string" && c.texto.trim().length > 10 && c.field in pulido) {
+          pulido[c.field] = c.texto.trim();
+        }
+      }
+      return { updates: pulido, resumen: base.resumen, generado_por: "ia" };
+    }
+    return { ...base, generado_por: "parser" };
+  } catch {
+    return { ...base, generado_por: "parser" };
+  }
+}

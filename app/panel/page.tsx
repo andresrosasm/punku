@@ -173,8 +173,14 @@ function Bandeja({ lang, rows, onOpen }: { lang: Lang; rows: Expediente[]; onOpe
                 <span style={{ fontSize: 12, color: "var(--slate-400)" }}>{e.distrito}</span>
               </span>
               <span className="col-hide" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span className="mini-cat" style={{ background: c.tint }}><CatGlyph id={c.icon} size={18} /></span>
-                <span style={{ fontSize: 12.5, color: "var(--slate-600)" }}>{c.es.split(" y ")[0]}</span>
+                {e.datos_incompletos ? (
+                  <span className="precisar-chip"><I.alert s={12} /> Por precisar</span>
+                ) : (
+                  <>
+                    <span className="mini-cat" style={{ background: c.tint }}><CatGlyph id={c.icon} size={18} /></span>
+                    <span style={{ fontSize: 12.5, color: "var(--slate-600)" }}>{c.es.split(" y ")[0]}</span>
+                  </>
+                )}
               </span>
               <span className="col-hide"><UrgenciaTag u={e.urgencia} /></span>
               <span><EstadoPill id={e.estado} lang={lang} /></span>
@@ -274,8 +280,9 @@ function EnviarFacultadModal({ exp, b4Form, facultadDestino, onClose, onEnviado 
 
 /* ---------- B2 Detalle ---------- */
 function KV({ label, value }: any) { return <div><div className="kv-label">{label}</div><div className="kv-val">{value}</div></div>; }
-function Detalle({ lang, exp, b4Form, onBack, onArmar, onEstado }: {
-  lang: Lang; exp: Expediente; b4Form: B4Form; onBack: () => void; onArmar: () => void;
+function Detalle({ lang, exp, b4Form, prepared, initialToast, onClearToast, onBack, onArmar, onEstado }: {
+  lang: Lang; exp: Expediente; b4Form: B4Form; prepared: boolean; initialToast?: string; onClearToast?: () => void;
+  onBack: () => void; onArmar: () => void;
   onEstado: (codigo: string, estado: EstadoId, nota: string) => Promise<void>;
 }) {
   const [estado, setEstado] = useState<EstadoId>(exp.estado);
@@ -290,9 +297,12 @@ function Detalle({ lang, exp, b4Form, onBack, onArmar, onEstado }: {
   const [showCorreo, setShowCorreo] = useState(false);
   const c = catOf(exp.categoria)!;
   const idx = ESTADOS.findIndex((e) => e.id === estado);
-  // ¿B4 tiene contenido? (gobierna si en "revisión" se arma o ya se puede derivar)
-  const b4Listo = !!(b4Form?.objetivoGen?.trim() || b4Form?.objetivosEsp?.trim() || b4Form?.metas?.trim());
+  // ¿Hay un borrador de B4 con contenido? (enriquece el copy "Continúa la solicitud").
+  // El paso "listo para derivar" lo gobierna el flag explícito `prepared` (BD), no el contenido.
+  const hasDraft = !!(b4Form?.objetivoGen?.trim() || b4Form?.objetivosEsp?.trim() || b4Form?.metas?.trim() || b4Form?.metodologia?.trim() || b4Form?.recursos?.trim());
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(""), 2600); };
+  // Toast traído desde B4 al volver (p. ej. "Solicitud lista. Ahora puedes derivar.").
+  useEffect(() => { if (initialToast) { flash(initialToast); onClearToast?.(); } /* eslint-disable-next-line */ }, []);
 
   // Avanza el estado y lo refleja en la consulta ciudadana (A5) + historial.
   const avanzarA = async (e: EstadoId) => {
@@ -336,10 +346,10 @@ function Detalle({ lang, exp, b4Form, onBack, onArmar, onEstado }: {
         </div>
       </div>
 
-      {exp.datos_incompletos && (
+      {exp.datos_incompletos && estado !== "recibido" && (
         <div className="incompleto-banner">
           <I.alert s={18} />
-          <span>La clasificación detectó <strong>datos incompletos o poco claros</strong>. El expediente se registró igual (fricción cero para el ciudadano). Conviene <strong>contactar al ciudadano</strong> para completar la información antes de formalizar — usa "Mostrar" → "Contactar por WhatsApp".</span>
+          <span>Este expediente <strong>llegó con poca información</strong>. Se registró igual (fricción cero para el ciudadano). Conviene <strong>co-construir con la comunidad</strong> por WhatsApp (en el módulo de B4) antes de formalizar.</span>
         </div>
       )}
 
@@ -360,23 +370,39 @@ function Detalle({ lang, exp, b4Form, onBack, onArmar, onEstado }: {
 
       {/* ACCIÓN PRINCIPAL del estado actual (lo más prominente) */}
       {estado === "recibido" && (
-        <div className="action-card">
-          <div className="ac-eyebrow"><I.sparkle s={13} /> Paso actual · Recibido</div>
-          <h3>Revisa el caso y clasifícalo</h3>
-          <p className="ac-sub">Confirma la clasificación que hizo la IA y pásalo a revisión para empezar a gestionarlo.</p>
-          <button className="ac-main" onClick={() => avanzarA("revision")}>Revisar y clasificar <I.arrowR s={18} /></button>
+        <div className={"action-card" + (exp.datos_incompletos ? " warn" : "")}>
+          {exp.datos_incompletos ? (
+            <>
+              <div className="ac-eyebrow"><I.alert s={13} /> Paso actual · Recibido · señal baja</div>
+              <h3>Llegó con poca información</h3>
+              <p className="ac-sub">No se rechaza ningún pedido. La comunidad envió poco texto: contáctala para precisar el problema, a cuántas familias afecta y qué espera lograr, y co-construye la solicitud.</p>
+              <div className="raw-quote">
+                <span className="rq-label">Lo que escribió la comunidad</span>
+                <span className="rq-text">“{exp.necesidad_texto || "(sin texto)"}”</span>
+              </div>
+              <button className="ac-main" style={{ marginTop: 14 }} onClick={() => avanzarA("revision")}>Empezar revisión y contactar <I.arrowR s={18} /></button>
+            </>
+          ) : (
+            <>
+              <div className="ac-eyebrow"><I.sparkle s={13} /> Paso actual · Recibido</div>
+              <h3>Revisa el caso y clasifícalo</h3>
+              <p className="ac-sub">Confirma la clasificación que hizo la IA y pásalo a revisión para empezar a gestionarlo.</p>
+              <button className="ac-main" onClick={() => avanzarA("revision")}>Revisar y clasificar <I.arrowR s={18} /></button>
+            </>
+          )}
           <textarea value={nota} onChange={(e) => setNota(e.target.value)} className="ac-note" rows={2} placeholder="Nota opcional (queda en el historial)…" />
         </div>
       )}
-      {estado === "revision" && !b4Listo && (
+      {estado === "revision" && !prepared && (
         <div className="action-card">
           <div className="ac-eyebrow"><I.sparkle s={13} /> Paso actual · En revisión</div>
-          <h3>Arma la solicitud oficial</h3>
-          <p className="ac-sub">PUNKU ya pre-llenó el formato UNCP con lo que sabe de la comunidad. Completa lo académico y, al terminar, deriva a la facultad.</p>
-          <button className="ac-main" onClick={onArmar}>Armar solicitud y derivar <I.arrowR s={18} /></button>
+          <h3>{hasDraft ? "Continúa la solicitud" : "Arma la solicitud oficial"}</h3>
+          <p className="ac-sub">{hasDraft ? "Tienes un borrador guardado. Retómalo, complétalo y márcalo listo para derivar a la facultad." : "PUNKU ya pre-llenó el formato UNCP con lo que sabe de la comunidad. Completa lo académico y, al terminar, deriva a la facultad."}</p>
+          {hasDraft && <div style={{ marginBottom: 12 }}><span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--green-700)" }}><I.check s={13} /> Borrador guardado</span></div>}
+          <button className="ac-main" onClick={onArmar}>{hasDraft ? "Continuar la solicitud" : "Armar solicitud"} <I.arrowR s={18} /></button>
         </div>
       )}
-      {estado === "revision" && b4Listo && (
+      {estado === "revision" && prepared && (
         <div className="action-card">
           <div className="ac-eyebrow"><I.send s={13} /> Paso actual · En revisión</div>
           <h3>Deriva a la facultad y notifica</h3>
@@ -478,10 +504,14 @@ function Detalle({ lang, exp, b4Form, onBack, onArmar, onEstado }: {
 
 /* ---------- B4 Completar solicitud (formato UNCP) ---------- */
 function EdField({ label, children, ai, onAi, loading, pending }: any) {
+  const done = !pending;
   return (
-    <div className={"ed-field" + (pending ? " pending" : "")}>
+    <div className={"ed-field" + (pending ? " pending" : " done")}>
       <div className="ed-top">
-        <span className="ed-label">{label}{pending && <span className="pend-pill">Pendiente</span>}</span>
+        <span className="ed-label">
+          {done && <span className="ed-check"><I.check s={11} /></span>}
+          {label}{pending && <span className="pend-pill">Pendiente</span>}
+        </span>
         {ai && (
           <button className="ai-btn" onClick={onAi} disabled={loading}>
             {loading ? <><span className="ai-spin" /> Generando…</> : <><I.sparkle s={13} /> Sugerir con IA</>}
@@ -492,16 +522,151 @@ function EdField({ label, children, ai, onAi, loading, pending }: any) {
     </div>
   );
 }
-function Solicitud({ exp, form, onChangeForm, onBack }: {
-  exp: Expediente; form: B4Form; onChangeForm: (updater: (p: B4Form) => B4Form) => void; onBack: () => void;
+
+/* ---------- Módulo de co-construcción con el ciudadano (WhatsApp) ---------- */
+type CocoOption = { label: string; formal: string };
+type CocoPregunta = { field: string; q: string; options: CocoOption[] };
+const COCO_LABEL: Record<string, string> = { objetivoGen: "Objetivo general", metas: "Metas", recursos: "Recursos", metodologia: "Metodología" };
+
+function WhatsAppModule({ exp, abiertoInicial, camposLlenos, onFill }: {
+  exp: Expediente; abiertoInicial: boolean; camposLlenos: string[]; onFill: (updates: Record<string, string>) => void;
+}) {
+  const [open, setOpen] = useState(abiertoInicial);
+  const [questions, setQuestions] = useState<CocoPregunta[] | null>(null);
+  const [genBusy, setGenBusy] = useState(false);
+  const [resp, setResp] = useState("");
+  const [interpBusy, setInterpBusy] = useState(false);
+  const [result, setResult] = useState<{ q: string; choiceLabel: string; field: string }[] | null>(null);
+  // Se generó pero, tras filtrar lo ya resuelto, no quedó nada que preguntar.
+  const noFaltan = !!(questions && questions.length === 0);
+  const hayPreguntas = !!(questions && questions.length > 0);
+
+  const generar = async () => {
+    if (genBusy) return;
+    setGenBusy(true); setResult(null);
+    try {
+      // Mandamos los campos ámbar ya llenos para que el generador NO los repregunte.
+      const res = await fetch("/api/coconstruccion/preguntas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ codigo: exp.codigo, camposLlenos }) });
+      const d = await res.json();
+      if (Array.isArray(d.preguntas)) setQuestions(d.preguntas);
+    } catch {}
+    setGenBusy(false);
+  };
+
+  // wa.me: abrimos una pestaña sincrónica (evita el bloqueador) y luego le ponemos
+  // la URL que arma el servidor con el teléfono real (el front nunca lo ve crudo).
+  const contactar = async () => {
+    if (!hayPreguntas) return;
+    const w = window.open("about:blank", "_blank");
+    try {
+      const res = await fetch(`/api/expedientes/${exp.codigo}/wa-link`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preguntas: questions }) });
+      const d = await res.json();
+      if (d.url) { if (w) w.location.href = d.url; else window.location.assign(d.url); }
+      else if (w) w.close();
+    } catch { if (w) w.close(); }
+  };
+
+  const interpretar = async () => {
+    if (!hayPreguntas || !resp.trim() || interpBusy) return;
+    setInterpBusy(true);
+    try {
+      const res = await fetch("/api/coconstruccion/interpretar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ codigo: exp.codigo, preguntas: questions, respuesta: resp }) });
+      const d = await res.json();
+      if (d.updates && Object.keys(d.updates).length) { onFill(d.updates); setResult(d.resumen || []); }
+    } catch {}
+    setInterpBusy(false);
+  };
+
+  return (
+    <div className={"wa-card" + (open ? " open" : "")}>
+      <button className="wa-head" onClick={() => setOpen((o) => !o)}>
+        <span className="wa-ico"><WaIcon /></span>
+        <div style={{ flex: 1, textAlign: "left" }}>
+          <div className="wa-title">Co-construir con la comunidad por WhatsApp</div>
+          <div className="wa-sub">{abiertoInicial
+            ? "Esta solicitud llegó con poca información. Pregúntale a la comunidad lo que falta — fácil, con opciones numeradas."
+            : "Para los datos que solo la comunidad tiene (su meta real, plazos, aportes), pregúntale con opciones numeradas."}</div>
+        </div>
+        <span className="wa-chev" style={{ transform: open ? "rotate(180deg)" : "none" }}><I.chevron s={18} /></span>
+      </button>
+
+      {open && (
+        <div className="wa-body">
+          <div className="wa-steps">
+            <div className="wa-step">
+              <div className="wa-step-h"><span className="wa-step-n">1</span> La IA arma las preguntas</div>
+              <p className="wa-step-p">Solo pregunta lo que falta: nunca lo que la comunidad ya eligió con botones (meta, plazo, familias) ni lo que ya completaste en B4.</p>
+              <button className={"gbtn gbtn-secondary gbtn-sm" + (genBusy ? " busy" : "")} onClick={generar} disabled={genBusy}>
+                {genBusy ? <><span className="ai-spin dark" /> Generando…</> : <><I.wand s={15} /> {questions ? "Regenerar preguntas" : "Generar preguntas para el ciudadano"}</>}
+              </button>
+              {hayPreguntas && (
+                <div className="wa-qbox">
+                  {questions!.map((q, i) => (
+                    <div className="wa-q" key={i}>
+                      <div className="wa-q-t"><b>{i + 1}.</b> {q.q}</div>
+                      <div className="wa-q-opts">{q.options.map((o, j) => <span key={j} className="wa-opt"><b>{j + 1})</b> {o.label}</span>)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {noFaltan && (
+                <div className="wa-nada"><I.check s={14} /> No hay nada pendiente que preguntar: la comunidad ya indicó su meta, plazo y alcance. Completa los campos académicos directamente o con “Sugerir con IA”.</div>
+              )}
+            </div>
+
+            <div className={"wa-step" + (hayPreguntas ? "" : " off")}>
+              <div className="wa-step-h"><span className="wa-step-n">2</span> Envíalas por WhatsApp</div>
+              <p className="wa-step-p">Se abre WhatsApp con las preguntas listas, sobre el teléfono real del contacto (server-side).</p>
+              <button className={"gbtn gbtn-wa gbtn-sm" + (hayPreguntas ? "" : " disabled")} onClick={contactar} disabled={!hayPreguntas}>
+                <WaIcon /> Contactar por WhatsApp
+              </button>
+            </div>
+
+            <div className={"wa-step" + (hayPreguntas ? "" : " off")}>
+              <div className="wa-step-h"><span className="wa-step-n">3</span> Pega la respuesta e interprétala</div>
+              <p className="wa-step-p">La IA mapea los números contra las preguntas y completa los campos del formulario.</p>
+              <textarea className="wa-resp" rows={2} value={resp} onChange={(e) => setResp(e.target.value)}
+                placeholder={hayPreguntas ? 'Ej.: "1 2 1 2"   ·   o "respondo 1, 2, y somos como 15"' : "Primero genera las preguntas…"} disabled={!hayPreguntas} />
+              <button className={"gbtn gbtn-primary gbtn-sm" + (interpBusy ? " busy" : "")} onClick={interpretar} disabled={!hayPreguntas || !resp.trim() || interpBusy}>
+                {interpBusy ? <><span className="ai-spin" /> Interpretando…</> : <><I.sparkle s={14} /> Interpretar respuesta con IA</>}
+              </button>
+              {result && result.length > 0 && (
+                <div className="wa-result">
+                  <div className="wa-result-h"><I.check s={14} /> Interpretado y volcado al formulario</div>
+                  {result.map((r, i) => (
+                    <div className="wa-result-row" key={i}>
+                      <span className="wa-r-q">{r.q}</span>
+                      <span className="wa-r-arrow"><I.arrowR s={13} /></span>
+                      <span className="wa-r-a">{r.choiceLabel}</span>
+                      <span className="wa-r-field">→ {COCO_LABEL[r.field] || r.field}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="wa-honest">
+            <I.shield s={14} /> <strong>Demo:</strong> pega manualmente la respuesta del ciudadano y la IA la interpreta (esto sí es funcional). En producción, la respuesta llega <strong>automática por WhatsApp Business API</strong> y escribe en la base de datos sin intervención.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Solicitud({ exp, form, onChangeForm, yaListo, onClose }: {
+  exp: Expediente; form: B4Form; onChangeForm: (updater: (p: B4Form) => B4Form) => void;
+  yaListo: boolean; onClose: (opts: { listo: boolean; msg: string }) => void;
 }) {
   const c = catOf(exp.categoria)!;
+  const pobre = exp.datos_incompletos; // llegó con poca info: co-creación, no rechazo
   const modal = modalidadDe(exp);
-  const ods = ODS_MAP[exp.categoria] || "ODS 17 · Alianzas";
-  const area = AREA_MAP[exp.categoria] || "Intervención Tecnológica";
-  const justif = justificacionIA(exp, ods);
+  const ods = pobre ? "Por confirmar" : (ODS_MAP[exp.categoria] || "ODS 17 · Alianzas");
+  const area = pobre ? "Por confirmar" : (AREA_MAP[exp.categoria] || "Intervención Tecnológica");
+  const justif = pobre ? "Falta precisar con la comunidad antes de redactar la justificación." : justificacionIA(exp, ods);
   // El formulario lo gestiona el panel (hidratado desde la BD); aquí solo se edita.
-  // setF -> onChangeForm. "Guardar borrador" lo persiste en la BD (tabla borradores_b4).
+  // setF -> onChangeForm. Las salidas del footer lo persisten en la BD (borradores_b4).
   const f = form;
   const setF = onChangeForm;
   const [toast, setToast] = useState("");
@@ -513,23 +678,24 @@ function Solicitud({ exp, form, onChangeForm, onBack }: {
   const delStu = (i: number) => setF((p) => ({ ...p, estudiantes: p.estudiantes.filter((_, j) => j !== i) }));
   const wc = exp.titulo.trim().split(/\s+/).length;
 
-  // Progreso del formato oficial: el bloque pre-llenado por PUNKU es la base (~70%);
-  // los campos académicos editables suben el resto hasta 100%. Cada campo lleva su
-  // etiqueta para resaltar los pendientes y resumir cuáles faltan.
-  const CAMPOS_B4 = [
+  // Progreso vivo (handoff §2.3): la base es lo que PUNKU ya pre-llenó (70% si la
+  // info llegó rica, 26% si llegó pobre); los 9 campos académicos editables suben el
+  // resto hasta 100%. El cronograma viene pre-lleno y no cuenta como pendiente.
+  const AMBER = [
     { key: "objetivoGen", label: "Objetivo general", filled: !!f.objetivoGen.trim() },
     { key: "objetivosEsp", label: "Objetivos específicos", filled: !!f.objetivosEsp.trim() },
     { key: "metas", label: "Metas", filled: !!f.metas.trim() },
     { key: "metodologia", label: "Metodología", filled: !!f.metodologia.trim() },
-    { key: "cronograma", label: "Cronograma", filled: !!(f.fechaIni && f.fechaFin) },
     { key: "recursos", label: "Recursos", filled: !!f.recursos.trim() },
     { key: "presupuesto", label: "Presupuesto", filled: !!String(f.presupuesto).trim() },
     { key: "docente", label: "Docente responsable", filled: !!f.docente.trim() },
     { key: "estudiantes", label: "Estudiantes", filled: f.estudiantes.some((e) => e.nombre.trim()) },
     { key: "evaluacion", label: "Evaluación y monitoreo", filled: !!f.evaluacion.trim() },
   ];
-  const pendientes = CAMPOS_B4.filter((x) => !x.filled);
-  const pct = Math.round(70 + ((CAMPOS_B4.length - pendientes.length) / CAMPOS_B4.length) * 30);
+  const base = pobre ? 26 : 70;
+  const llenos = AMBER.filter((x) => x.filled).length;
+  const pct = Math.min(100, Math.round(base + (llenos / AMBER.length) * (100 - base)));
+  const faltan = AMBER.filter((x) => !x.filled);
 
   // "Sugerir con IA": llama al motor real (/api/sugerir). Si la IA no está
   // disponible cae a plantilla; si el expediente no es coherente, avisa y no rellena.
@@ -560,21 +726,22 @@ function Solicitud({ exp, form, onChangeForm, onBack }: {
     } catch { flash("No se pudo abrir el PDF."); }
   };
 
-  // Guarda el borrador en la BD (upsert por expediente). Persiste tras recargar.
-  const guardar = async () => {
+  // Persiste el borrador (upsert) con el flag "listo" y vuelve al expediente. listo=true
+  // solo desde "Guardar y volver para derivar"; las demás salidas conservan yaListo.
+  const volver = async (listo: boolean, msg: string) => {
     if (guardando) return;
     setGuardando(true);
     try {
-      const res = await fetch(`/api/expedientes/${exp.codigo}/borrador`, {
-        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f),
+      await fetch(`/api/expedientes/${exp.codigo}/borrador`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...f, listo }),
       });
-      flash(res.ok ? "Borrador guardado." : "No se pudo guardar el borrador.");
-    } catch { flash("No se pudo guardar el borrador."); }
+    } catch {}
     setGuardando(false);
+    onClose({ listo, msg });
   };
 
-  const RO = ({ label, children, full }: any) => (
-    <div className={"ro-field" + (full ? " full" : "")}>
+  const RO = ({ label, children, full, missing }: any) => (
+    <div className={"ro-field" + (full ? " full" : "") + (missing ? " missing" : "")}>
       <div className="ro-label">{label}</div>
       <div className="ro-val">{children}</div>
     </div>
@@ -582,14 +749,19 @@ function Solicitud({ exp, form, onChangeForm, onBack }: {
 
   return (
     <div className="crm-main">
-      <button onClick={onBack} className="crm-back"><I.arrowL s={18} /> Volver al expediente</button>
+      {/* Recorrido — ancla B4 dentro del flujo guiado; "volver" guarda el avance */}
+      <div className="b4-crumb">
+        <button onClick={() => volver(yaListo, "")} className="crm-back"><I.arrowL s={18} /> Volver al expediente</button>
+        <span className="b4-crumb-sep">›</span>
+        <span className="b4-crumb-step"><span className="b4-crumb-num">Paso 2 de 3 · En revisión</span> Armar la solicitud oficial</span>
+      </div>
 
       <div className="b4-hero">
         <span className="armar-ico lg"><I.sparkle s={20} /></span>
         <div style={{ flex: 1 }}>
           <h2 style={{ fontSize: 21, color: "var(--slate-900)" }}>Completar solicitud de proyección social</h2>
-          <p style={{ color: "var(--slate-500)", fontSize: 13.5, marginTop: 3, maxWidth: 680 }}>
-            PUNKU también traduce para la universidad: en vez de un papel en blanco, te da el formato oficial UNCP semi-llenado con lo que ya sabemos de la comunidad. Tú solo completas lo académico.
+          <p style={{ color: "var(--slate-500)", fontSize: 13.5, marginTop: 3, maxWidth: 700 }}>
+            PUNKU pre-llena el formato oficial UNCP con lo que ya sabe de la comunidad (verde). La UNCP completa lo académico (ámbar) con apoyo de IA. Al terminar, vuelves al expediente para derivar.
           </p>
         </div>
         <div className="b4-meta">
@@ -599,52 +771,52 @@ function Solicitud({ exp, form, onChangeForm, onBack }: {
       </div>
 
       <div className="b4-legend">
-        <span><i className="dot g" /> Lo que ya sabemos — pre-llenado por PUNKU</span>
-        <span><i className="dot a" /> Completa para formalizar — lo redacta la UNCP con apoyo de IA</span>
+        <span><i className="dot g" /> <strong>Lo que ya sabemos</strong> — pre-llenado por PUNKU</span>
+        <span><i className="dot a" /> <strong>Completa para formalizar</strong> — lo redacta la UNCP con apoyo de IA</span>
       </div>
 
-      {exp.datos_incompletos && (
-        <div className="incompleto-banner" style={{ marginBottom: 14 }}>
-          <I.alert s={18} />
-          <span>Este expediente entró con <strong>datos incompletos o poco claros</strong>. Revisa lo pre-llenado y, si hace falta, contacta al ciudadano por WhatsApp (en el detalle) antes de formalizar.</span>
+      {/* Progreso vivo */}
+      <div className="b4-progress">
+        <div className="b4-prog-top">
+          <span>Formato oficial completo al <strong className={pct >= 100 ? "full" : ""}>{pct}%</strong></span>
+          <span className="b4-prog-hint">{pct >= 100 ? "Listo para derivar" : "Completa los campos ámbar para llegar al 100%"}</span>
         </div>
-      )}
-
-      <div className={"b4-progress" + (exp.datos_incompletos ? " unreliable" : "")}>
-        <div className="b4-progress-top">
-          {exp.datos_incompletos ? (
-            <span>Pre-llenado a partir de <strong>datos poco confiables</strong> — revisa y corrige antes de formalizar. <strong>{pct}%</strong></span>
-          ) : (
-            <span>Formato oficial completo al <strong>{pct}%</strong></span>
-          )}
-          <span className="b4-progress-hint">{pct >= 100 ? "Listo para generar el PDF" : "Completa los campos resaltados para llegar al 100%"}</span>
-        </div>
-        <div className="b4-progress-track"><div className="b4-progress-fill" style={{ width: pct + "%" }} /></div>
-        {pendientes.length > 0 ? (
-          <div className="b4-pending-summary">
-            <I.alert s={14} /> Faltan <strong>{pendientes.length}</strong> {pendientes.length === 1 ? "campo" : "campos"} para llegar al 100%: {pendientes.map((p) => p.label).join(", ")}.
-          </div>
+        <div className="b4-prog-track"><div className="b4-prog-fill" style={{ width: pct + "%" }} /></div>
+        {faltan.length > 0 ? (
+          <div className="b4-prog-faltan"><I.alert s={14} /> Faltan <strong>{faltan.length}</strong> {faltan.length === 1 ? "campo" : "campos"}: {faltan.map((p) => p.label).join(", ")}.</div>
         ) : (
-          <div className="b4-pending-summary done"><I.check s={14} /> Formato completo. Listo para generar el PDF.</div>
+          <div className="b4-prog-done"><I.check s={14} /> Todos los campos del formato están completos.</div>
         )}
       </div>
 
+      {/* Co-construcción con la comunidad por WhatsApp.
+          camposLlenos = campos ámbar que la IA NO debe repreguntar (ya llenos en B4). */}
+      <WhatsAppModule exp={exp} abiertoInicial={!!pobre}
+        camposLlenos={["objetivoGen", "metas", "recursos", "metodologia"].filter((k) => String((f as any)[k] || "").trim())}
+        onFill={(updates) => { setF((p) => ({ ...p, ...updates })); flash("La IA interpretó la respuesta y completó " + Object.keys(updates).length + " campo(s)."); }} />
+
       <div className="b4-grid">
         <div className="b4-block pre">
-          <div className="b4-bhead g"><I.check s={15} /> Lo que ya sabemos<span>solo lectura</span></div>
+          <div className="b4-bhead g"><I.check s={15} /> Lo que ya sabemos<span>contexto · solo lectura</span></div>
           <RO label="Título del proyecto (propuesta)" full>{exp.titulo} <span className={"word-chip" + (wc > 15 ? " over" : "")}>{wc}/15 palabras</span></RO>
           <RO label="Lugar de ejecución">{exp.distrito}, {exp.comunidad} · Huancayo, Junín</RO>
-          <RO label="Población beneficiaria"><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><I.users s={14} />{exp.familias_afectadas} familias · {exp.comunidad}</span></RO>
-          <RO label="Descripción del problema / necesidad" full>{exp.resumen_formal}</RO>
-          <RO label="Resultado que espera la comunidad (en sus palabras)" full>
-            <span style={{ display: "inline-flex", alignItems: "flex-start", gap: 7 }}><span style={{ color: "var(--green-600)", flex: "none", marginTop: 2 }}><I.sparkle s={15} /></span><em style={{ fontStyle: "normal" }}>“{exp.resultado_deseado || "—"}”</em></span>
+          <RO label="Población beneficiaria" missing={!exp.familias_afectadas}>
+            {exp.familias_afectadas
+              ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><I.users s={14} />{exp.familias_afectadas} familias · {exp.comunidad}</span>
+              : <span className="ro-missing"><I.alert s={13} /> La comunidad no precisó cuántas familias — confírmalo por WhatsApp</span>}
           </RO>
-          <RO label="Área de proyección social"><span className="ro-tag">{area}</span> <em className="sug-note">sugerida por IA</em></RO>
+          <RO label="Descripción del problema / necesidad" full>{exp.resumen_formal}</RO>
+          <RO label="Resultado que espera la comunidad (en sus palabras)" full missing={!exp.resultado_deseado}>
+            {exp.resultado_deseado
+              ? <span style={{ display: "inline-flex", alignItems: "flex-start", gap: 7 }}><span style={{ color: "var(--green-600)", flex: "none", marginTop: 2 }}><I.sparkle s={15} /></span><em style={{ fontStyle: "normal" }}>“{exp.resultado_deseado}”</em></span>
+              : <span className="ro-missing"><I.alert s={13} /> No lo expresó — la co-construcción lo recoge</span>}
+          </RO>
+          <RO label="Área de proyección social">{pobre ? <span className="kv-pend">Por confirmar</span> : <><span className="ro-tag">{area}</span> <em className="sug-note">sugerida por IA</em></>}</RO>
           <RO label="Modalidad"><span className="ro-tag">{modal === "poli" ? "Polivalente" : "Monovalente"}</span> <em className="sug-note">{modal === "poli" ? "inter/transdisciplinario" : "una facultad"}</em></RO>
           <RO label="Facultad(es) sugerida(s)" full>
             <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>{exp.facultades_sugeridas.map((fc) => <span key={fc} className="fac-chip">{fc}</span>)}</div>
           </RO>
-          <RO label="ODS sugerido"><span className="ods-badge">{ods}</span></RO>
+          <RO label="ODS sugerido">{pobre ? <span className="kv-pend">Por confirmar</span> : <span className="ods-badge">{ods}</span>}</RO>
           <RO label="Justificación inicial" full><em style={{ color: "var(--slate-600)", fontStyle: "normal" }}>{justif}</em></RO>
         </div>
 
@@ -699,11 +871,17 @@ function Solicitud({ exp, form, onChangeForm, onBack }: {
         </div>
       </div>
 
-      <div className="b4-foot">
-        <div className="firma-note"><I.shield s={15} /> Las firmas (Dir. de Proyección Social, Decano y representante comunal) se completan al imprimir el documento — no se digitalizan.</div>
-        <div className="b4-actions">
-          <button className="draft-btn ghost" onClick={guardar} disabled={guardando}><I.copy s={15} /> {guardando ? "Guardando…" : "Guardar borrador"}</button>
-          <button className="b4-generate" onClick={generar}><I.arrowUR s={16} /> Generar solicitud completa (PDF formato UNCP)</button>
+      {/* Barra de acciones fija — las 3 salidas vuelven al expediente en revisión */}
+      <div className="b4-actionbar">
+        <div className="firma-note"><I.shield s={15} /> Las firmas (Dir. de Proyección Social, Decano y representante comunal) se completan al imprimir — no se digitalizan.</div>
+        <div className="b4-act-col">
+          <div className="b4-act-row">
+            <button className="gbtn gbtn-ghost gbtn-sm" onClick={() => volver(yaListo, "Borrador guardado. El expediente sigue en revisión.")} disabled={guardando}><I.copy s={15} /> Guardar borrador y volver</button>
+            <button className="gbtn gbtn-ghost gbtn-sm" onClick={generar} title="Opcional. El PDF se adjunta automáticamente al derivar."><I.download s={15} /> Descargar copia (PDF)</button>
+            <span className="b4-act-div" />
+            <button className="gbtn gbtn-primary" onClick={() => volver(true, "Solicitud lista. Ahora puedes derivar a la facultad.")} disabled={guardando}>Guardar y volver para derivar <I.arrowR s={16} /></button>
+          </div>
+          <span className="b4-act-hint"><I.shield s={12} /> El PDF (formato UNCP) se genera y adjunta solo al derivar. Aquí descargas una copia para revisar.</span>
         </div>
       </div>
 
@@ -821,6 +999,10 @@ export default function PanelPage() {
   const b4FormFor = (codigo: string) => b4Forms[codigo] ?? defaultB4Form();
   const onChangeB4Form = (codigo: string, updater: (p: B4Form) => B4Form) =>
     setB4Forms((prev) => ({ ...prev, [codigo]: updater(prev[codigo] ?? defaultB4Form()) }));
+  // "Listo para derivar" por código (flag explícito, persiste en borradores_b4) +
+  // toast que B4 deja para mostrarse al volver al expediente.
+  const [prepared, setPrepared] = useState<Record<string, boolean>>({});
+  const [pendingToast, setPendingToast] = useState("");
 
   // Hidratar el borrador desde la BD al abrir un expediente (una vez por sesión y
   // código; las ediciones de sesión no se sobre-escriben). En recarga del navegador
@@ -836,6 +1018,7 @@ export default function PanelPage() {
         if (res.ok) {
           const d = await res.json();
           if (d.borrador) setB4Forms((prev) => ({ ...prev, [codigo]: d.borrador }));
+          setPrepared((prev) => ({ ...prev, [codigo]: !!d.listo }));
         }
       } catch {}
     })();
@@ -880,8 +1063,8 @@ export default function PanelPage() {
     <div className="crm-shell">
       <CrmRail view={view} setView={(v) => setView(v)} onLogout={onLogout} />
       {view === "bandeja" && <Bandeja lang={lang} rows={rows} onOpen={(e) => { setSel(e); setView("detalle"); }} />}
-      {view === "detalle" && sel && <Detalle lang={lang} exp={sel} b4Form={b4FormFor(sel.codigo)} onBack={() => { setView("bandeja"); cargar(); }} onArmar={() => setView("solicitud")} onEstado={onEstado} />}
-      {view === "solicitud" && sel && <Solicitud exp={sel} form={b4FormFor(sel.codigo)} onChangeForm={(u) => onChangeB4Form(sel.codigo, u)} onBack={() => setView("detalle")} />}
+      {view === "detalle" && sel && <Detalle lang={lang} exp={sel} b4Form={b4FormFor(sel.codigo)} prepared={!!prepared[sel.codigo]} initialToast={pendingToast} onClearToast={() => setPendingToast("")} onBack={() => { setView("bandeja"); cargar(); }} onArmar={() => setView("solicitud")} onEstado={onEstado} />}
+      {view === "solicitud" && sel && <Solicitud exp={sel} form={b4FormFor(sel.codigo)} onChangeForm={(u) => onChangeB4Form(sel.codigo, u)} yaListo={!!prepared[sel.codigo]} onClose={({ listo, msg }) => { setPrepared((p) => ({ ...p, [sel.codigo]: listo })); if (msg) setPendingToast(msg); setView("detalle"); }} />}
       {view === "tablero" && <Tablero rows={rows} />}
     </div>
   );

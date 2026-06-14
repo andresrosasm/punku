@@ -38,9 +38,9 @@ export function cambiarEstado(codigo: string, estado: EstadoId, nota: string): P
 export function revelarContacto(codigo: string): Promise<ContactoInput | null> {
   return impl().revelarContacto(codigo);
 }
-export function cargarBorrador(codigo: string): Promise<B4Form | null> {
+export function cargarBorrador(codigo: string): Promise<{ form: B4Form; listo: boolean } | null> {
   return impl().cargarBorrador(codigo);
 }
-export function guardarBorrador(codigo: string, form: B4Form): Promise<boolean> {
-  return impl().guardarBorrador(codigo, form);
+export function guardarBorrador(codigo: string, form: B4Form, listo: boolean): Promise<boolean> {
+  return impl().guardarBorrador(codigo, form, listo);
 }

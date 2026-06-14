@@ -61,15 +61,15 @@ function seedRow(s: ExpedienteSeed) {
   const iso = seedDateISO(s.fecha);
   return {
     codigo: s.codigo, comunidad: s.comunidad, distrito: s.distrito, familias_afectadas: s.familias,
-    necesidad_texto: s.resumen, categoria: s.cat, facultades_sugeridas: s.facultades,
+    necesidad_texto: s.relato ?? s.resumen, categoria: s.cat, facultades_sugeridas: s.facultades,
     ods_sugerido: ODS_MAP[s.cat] || "ODS 17 · Alianzas", resultado_deseado: s.aspiracion,
     urgencia_ciudadana: s.urgencia === "alta" ? "alta" : s.urgencia === "media" ? "anio" : "espera",
     foto_url: null, modalidad: s.modalidad, urgencia: s.urgencia, resumen_formal: s.resumen,
     estado: s.estado, canal_origen, origen_registro: "ciudadano", clasificado_por: "ia",
     confianza: s.confianza / 100, titulo: s.titulo,
-    objetivo_sugerido: `Contribuir a que ${s.comunidad} logre: ${s.aspiracion.replace(/\.$/, "")}, con el acompañamiento de la UNCP.`,
+    objetivo_sugerido: s.aspiracion ? `Contribuir a que ${s.comunidad} logre: ${s.aspiracion.replace(/\.$/, "")}, con el acompañamiento de la UNCP.` : "",
     meta_sugerida: `${s.familias} familias beneficiadas y un plan de trabajo en 6 meses.`,
-    datos_incompletos: false,
+    datos_incompletos: s.datos_incompletos ?? false,
     creado_en: iso, actualizado_en: iso,
   };
 }
@@ -97,7 +97,12 @@ async function ensureSeed(): Promise<void> {
       for (let i = 0; i <= idx; i++) {
         hist.push({ expediente_id: id, estado: ESTADOS[i].id, nota: i === 0 ? "Expediente creado." : "", fecha: seedDateISO(s.fecha, i) });
       }
-      cont.push({ expediente_id: id, nombre_representante: "(dato ficticio reservado)", telefono: "9XX XXX XXX", es_facilitador: false });
+      cont.push({
+        expediente_id: id,
+        nombre_representante: /reservado/i.test(s.representante) ? "(dato ficticio reservado)" : s.representante,
+        telefono: /\d/.test(s.telefono) ? s.telefono : "9XX XXX XXX",
+        es_facilitador: false,
+      });
     }
     if (hist.length) await sb.from("estados_historial").insert(hist);
     if (cont.length) await sb.from("contactos").insert(cont);
@@ -228,15 +233,15 @@ function rowToForm(r: any): B4Form {
   };
 }
 
-export async function cargarBorrador(codigo: string): Promise<B4Form | null> {
+export async function cargarBorrador(codigo: string): Promise<{ form: B4Form; listo: boolean } | null> {
   const sb = supabaseAdmin();
   const { data: exp } = await sb.from("expedientes").select("id").eq("codigo", codigo.trim().toUpperCase()).maybeSingle();
   if (!exp) return null;
   const { data: b } = await sb.from("borradores_b4").select("*").eq("expediente_id", exp.id).maybeSingle();
-  return b ? rowToForm(b) : null;
+  return b ? { form: rowToForm(b), listo: !!b.listo_para_derivar } : null;
 }
 
-export async function guardarBorrador(codigo: string, form: B4Form): Promise<boolean> {
+export async function guardarBorrador(codigo: string, form: B4Form, listo: boolean): Promise<boolean> {
   const sb = supabaseAdmin();
   const { data: exp } = await sb.from("expedientes").select("id").eq("codigo", codigo.trim().toUpperCase()).maybeSingle();
   if (!exp) return false;
@@ -253,6 +258,7 @@ export async function guardarBorrador(codigo: string, form: B4Form): Promise<boo
     docente_asesor: form.docente || null,
     evaluacion: form.evaluacion || null,
     estudiantes: form.estudiantes || [],
+    listo_para_derivar: listo,
     actualizado_en: new Date().toISOString(),
   };
   const { error } = await sb.from("borradores_b4").upsert(row, { onConflict: "expediente_id" });

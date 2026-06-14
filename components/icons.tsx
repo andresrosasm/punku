@@ -85,4 +85,6 @@ export const I = {
   sparkle: (p?: IP) => (<svg viewBox="0 0 24 24" width={p?.s || 20} height={p?.s || 20} fill="currentColor"><path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8Z" /><path d="M19 14l.9 2.6L22 17l-2.1.4L19 20l-.9-2.6L16 17l2.1-.4Z" /></svg>),
   arrowUR: (p?: IP) => (<svg viewBox="0 0 24 24" width={p?.s || 16} height={p?.s || 16} fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 17L17 7M8 7h9v9" /></svg>),
   send: (p?: IP) => (<svg viewBox="0 0 24 24" width={p?.s || 18} height={p?.s || 18} fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z" /></svg>),
+  download: (p?: IP) => (<svg viewBox="0 0 24 24" width={p?.s || 18} height={p?.s || 18} fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>),
+  wand: (p?: IP) => (<svg viewBox="0 0 24 24" width={p?.s || 18} height={p?.s || 18} fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="M15 4V2M15 10V8M11 6H9M21 6h-2M18 9l-1.5-1.5M18 3l-1.5 1.5M4 20l10-10-2-2L2 18Z" /></svg>),
 };
