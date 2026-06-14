@@ -221,8 +221,8 @@ function generarPdfExpediente(exp: Expediente, form: B4Form) {
 }
 
 /* ---------- Modal: Enviar a la facultad (simulación de correo, frontend puro) ---------- */
-function EnviarFacultadModal({ exp, b4Form, onClose, onEnviado }: { exp: Expediente; b4Form: B4Form; onClose: () => void; onEnviado: () => void }) {
-  const facultad = exp.facultades_sugeridas.find((f) => !/otra entidad/i.test(f)) || "la facultad correspondiente";
+function EnviarFacultadModal({ exp, b4Form, facultadDestino, onClose, onEnviado }: { exp: Expediente; b4Form: B4Form; facultadDestino?: string; onClose: () => void; onEnviado: () => void }) {
+  const facultad = facultadDestino || exp.facultades_sugeridas.find((f) => !/otra entidad/i.test(f)) || "la facultad correspondiente";
   const asunto = `Solicitud de proyección social — ${exp.comunidad} — deriva a ${facultad}`;
   const cuerpo =
     `${exp.resumen_formal}\n\n` +
@@ -265,7 +265,7 @@ function EnviarFacultadModal({ exp, b4Form, onClose, onEnviado }: { exp: Expedie
         </div>
         <div className="modal-foot">
           <button className="draft-btn ghost" onClick={onClose}>Cancelar</button>
-          <button className="mail-send-btn" onClick={() => { onEnviado(); onClose(); }}><I.send s={16} /> Enviar</button>
+          <button className="mail-send-btn" onClick={() => { onEnviado(); onClose(); }}><I.send s={16} /> Derivar y enviar</button>
         </div>
       </div>
     </div>
@@ -286,19 +286,24 @@ function Detalle({ lang, exp, b4Form, onBack, onArmar, onEstado }: {
   const [showCorreo, setShowCorreo] = useState(false);
   const c = catOf(exp.categoria)!;
   const idx = ESTADOS.findIndex((e) => e.id === estado);
-  const next = ESTADOS[idx + 1];
-  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(""), 2400); };
+  // ¿B4 tiene contenido? (gobierna si en "revisión" se arma o ya se puede derivar)
+  const b4Listo = !!(b4Form?.objetivoGen?.trim() || b4Form?.objetivosEsp?.trim() || b4Form?.metas?.trim());
+  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(""), 2600); };
 
-  const avanzar = async () => {
-    if (!next) return;
-    await onEstado(exp.codigo, next.id, nota);
-    setEstado(next.id);
-    flash(`Estado actualizado a “${next.es}”. El ciudadano ya lo ve.`);
+  // Avanza el estado y lo refleja en la consulta ciudadana (A5) + historial.
+  const avanzarA = async (e: EstadoId) => {
+    await onEstado(exp.codigo, e, nota);
+    setEstado(e);
+    setNota("");
+    flash(`Estado actualizado a “${ESTADOS.find((s) => s.id === e)?.es}”. El ciudadano ya lo ve.`);
   };
-  const derivar = async () => {
-    await onEstado(exp.codigo, "derivado", `Derivado a ${destino}`);
+  // Derivar = notificar: lo dispara el botón "Derivar a [facultad]" -> abre el correo;
+  // al confirmar "Enviar" en el modal, esto pasa el estado a "Derivado" y lo registra.
+  const derivarYNotificar = async () => {
+    await onEstado(exp.codigo, "derivado", `Derivado a ${destino} y notificado por correo (simulación).${nota ? " " + nota : ""}`);
     setEstado("derivado");
-    flash(`Derivado a ${destino}.`);
+    setNota("");
+    flash(`Derivado a ${destino} ✓ Correo enviado (simulación). El ciudadano ya lo ve.`);
   };
   const revelar = async () => {
     try {
@@ -334,6 +339,81 @@ function Detalle({ lang, exp, b4Form, onBack, onArmar, onEstado }: {
         </div>
       )}
 
+      {/* Stepper horizontal — columna vertebral del recorrido */}
+      <div className="det-stepper">
+        {ESTADOS.map((s, i) => {
+          const done = i < idx, cur = i === idx;
+          return (
+            <div key={s.id} className={"step " + (done ? "done" : cur ? "cur" : "todo")}>
+              {i < ESTADOS.length - 1 && <span className="step-line" />}
+              <span className="step-dot">{done ? <I.check s={14} /> : i + 1}</span>
+              <span className="step-label">{s.es}</span>
+            </div>
+          );
+        })}
+      </div>
+      <p className="det-impact"><I.users s={14} /> Cada cambio de estado se refleja al instante en la consulta del ciudadano por su código.</p>
+
+      {/* ACCIÓN PRINCIPAL del estado actual (lo más prominente) */}
+      {estado === "recibido" && (
+        <div className="action-card">
+          <div className="ac-eyebrow"><I.sparkle s={13} /> Paso actual · Recibido</div>
+          <h3>Revisa el caso y clasifícalo</h3>
+          <p className="ac-sub">Confirma la clasificación que hizo la IA y pásalo a revisión para empezar a gestionarlo.</p>
+          <button className="ac-main" onClick={() => avanzarA("revision")}>Revisar y clasificar <I.arrowR s={18} /></button>
+          <textarea value={nota} onChange={(e) => setNota(e.target.value)} className="ac-note" rows={2} placeholder="Nota opcional (queda en el historial)…" />
+        </div>
+      )}
+      {estado === "revision" && !b4Listo && (
+        <div className="action-card">
+          <div className="ac-eyebrow"><I.sparkle s={13} /> Paso actual · En revisión</div>
+          <h3>Arma la solicitud oficial</h3>
+          <p className="ac-sub">PUNKU ya pre-llenó el formato UNCP con lo que sabe de la comunidad. Completa lo académico y, al terminar, deriva a la facultad.</p>
+          <button className="ac-main" onClick={onArmar}>Armar solicitud y derivar <I.arrowR s={18} /></button>
+        </div>
+      )}
+      {estado === "revision" && b4Listo && (
+        <div className="action-card">
+          <div className="ac-eyebrow"><I.send s={13} /> Paso actual · En revisión</div>
+          <h3>Deriva a la facultad y notifica</h3>
+          <p className="ac-sub">Al derivar se abre el correo a la facultad con el PDF (formato UNCP) y el CSV adjuntos, ya con lo que llenaste. Al confirmar el envío, el caso pasa a “Derivado”. <strong>Derivar = notificar.</strong></p>
+          <div className="ac-row">
+            <span className="ac-label">Facultad destino:</span>
+            <select className="ac-select" value={destino} onChange={(e) => setDestino(e.target.value)}>
+              {FACULTADES.map((f) => <option key={f}>{f}</option>)}
+            </select>
+            <button className="ac-main" style={{ marginTop: 0 }} onClick={() => setShowCorreo(true)}>Derivar a {destino} <I.arrowR s={18} /></button>
+          </div>
+          <textarea value={nota} onChange={(e) => setNota(e.target.value)} className="ac-note" rows={2} placeholder="Nota opcional (queda en el historial)…" />
+          <button className="ac-link" onClick={onArmar}>← Volver a editar la solicitud (B4)</button>
+        </div>
+      )}
+      {estado === "derivado" && (
+        <div className="action-card">
+          <div className="ac-eyebrow"><I.sparkle s={13} /> Paso actual · Derivado</div>
+          <h3>Una facultad está atendiendo el caso</h3>
+          <p className="ac-sub">Cuando la facultad tome el caso y empiece a trabajarlo en la comunidad, márcalo como atendido.</p>
+          <button className="ac-main" onClick={() => avanzarA("atendido")}>Marcar como atendido <I.arrowR s={18} /></button>
+          <textarea value={nota} onChange={(e) => setNota(e.target.value)} className="ac-note" rows={2} placeholder="Nota opcional (queda en el historial)…" />
+        </div>
+      )}
+      {estado === "atendido" && (
+        <div className="action-card">
+          <div className="ac-eyebrow"><I.sparkle s={13} /> Paso actual · Atendido</div>
+          <h3>El caso fue atendido</h3>
+          <p className="ac-sub">Si el caso ya concluyó, ciérralo. El ciudadano verá que su caso terminó.</p>
+          <button className="ac-main" onClick={() => avanzarA("cerrado")}>Cerrar caso <I.arrowR s={18} /></button>
+          <textarea value={nota} onChange={(e) => setNota(e.target.value)} className="ac-note" rows={2} placeholder="Nota opcional (queda en el historial)…" />
+        </div>
+      )}
+      {estado === "cerrado" && (
+        <div className="action-card closed">
+          <div className="ac-eyebrow"><I.check s={13} /> Recorrido completo</div>
+          <div className="ac-closed"><I.check s={18} /> Caso cerrado — el ciudadano ya lo ve en su consulta. No hay más acciones.</div>
+        </div>
+      )}
+
+      {/* Datos del expediente (secundario) */}
       <div className="det-grid">
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div className="card">
@@ -363,6 +443,9 @@ function Detalle({ lang, exp, b4Form, onBack, onArmar, onEstado }: {
             </div>
           </div>
 
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div className="card contact-card">
             <div className="card-eyebrow"><I.phone s={14} /> Datos de contacto</div>
             {contacto ? (
@@ -381,54 +464,10 @@ function Detalle({ lang, exp, b4Form, onBack, onArmar, onEstado }: {
             )}
           </div>
         </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <button className="armar-card" onClick={onArmar}>
-            <span className="armar-ico"><I.sparkle s={18} /></span>
-            <span className="armar-txt">
-              <strong>Armar solicitud de proyección social</strong>
-              <em>PUNKU pre-llena el formato oficial UNCP. Solo completas lo académico.</em>
-            </span>
-            <I.arrowR s={18} />
-          </button>
-
-          <div className="card">
-            <div className="card-eyebrow">Estado del caso</div>
-            <div className="state-rail">
-              {ESTADOS.map((s, i) => (
-                <div key={s.id} className={"sr-item " + (i < idx ? "done" : i === idx ? "cur" : "todo")}>
-                  <span className="sr-dot">{i < idx ? <I.check s={11} /> : null}</span>
-                  <span className="sr-label">{s.es}</span>
-                </div>
-              ))}
-            </div>
-            {next ? (
-              <button className="advance-btn" onClick={avanzar}><I.arrowR s={17} /> Avanzar a “{next.es}”</button>
-            ) : (
-              <div className="closed-note"><I.check s={15} /> Caso cerrado</div>
-            )}
-            <textarea value={nota} onChange={(e) => setNota(e.target.value)} className="crm-ta" rows={2} placeholder="Nota opcional (queda en el historial)…" />
-          </div>
-
-          <div className="card">
-            <div className="card-eyebrow">Derivar</div>
-            <p style={{ fontSize: 12.5, color: "var(--slate-500)", margin: "6px 0 10px" }}>Elige el destino. Queda registrado en el timeline.</p>
-            <select value={destino} onChange={(e) => setDestino(e.target.value)} className="crm-select">
-              {FACULTADES.map((f) => <option key={f}>{f}</option>)}
-            </select>
-            <button className="derive-btn" onClick={derivar}><I.arrowUR s={15} /> Derivar a este destino</button>
-          </div>
-
-          <button className="enviar-fac-btn" onClick={() => setShowCorreo(true)}>
-            <I.send s={16} /> Enviar a la facultad
-          </button>
-
-          <div className="impact-note"><I.users s={16} /> Cada cambio aquí se refleja al instante en la consulta del ciudadano por su código.</div>
-        </div>
       </div>
 
       {toast && <div className="crm-toast fade-in"><I.check s={16} /> {toast}</div>}
-      {showCorreo && <EnviarFacultadModal exp={exp} b4Form={b4Form} onClose={() => setShowCorreo(false)} onEnviado={() => flash("Correo preparado para la facultad ✓ (simulación)")} />}
+      {showCorreo && <EnviarFacultadModal exp={exp} b4Form={b4Form} facultadDestino={destino} onClose={() => setShowCorreo(false)} onEnviado={derivarYNotificar} />}
     </div>
   );
 }
