@@ -35,6 +35,13 @@ export function obtenerExpediente(codigo: string): Promise<{ expediente: Expedie
 export function cambiarEstado(codigo: string, estado: EstadoId, nota: string): Promise<Expediente | null> {
   return impl().cambiarEstado(codigo, estado, nota);
 }
+/** Reconstrucción de CONTEXTO ciudadano (co-construcción WhatsApp). Patch de columnas existentes. */
+export function actualizarContextoExpediente(
+  codigo: string,
+  patch: { resultado_deseado?: string; familias_afectadas?: number; resumen_formal?: string; datos_incompletos?: boolean }
+): Promise<Expediente | null> {
+  return impl().actualizarContextoExpediente(codigo, patch);
+}
 export function revelarContacto(codigo: string): Promise<ContactoInput | null> {
   return impl().revelarContacto(codigo);
 }

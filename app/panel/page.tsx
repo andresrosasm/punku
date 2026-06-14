@@ -523,40 +523,45 @@ function EdField({ label, children, ai, onAi, loading, pending }: any) {
   );
 }
 
-/* ---------- Módulo de co-construcción con el ciudadano (WhatsApp) ---------- */
-type CocoOption = { label: string; formal: string };
-type CocoPregunta = { field: string; q: string; options: CocoOption[] };
-const COCO_LABEL: Record<string, string> = { objetivoGen: "Objetivo general", metas: "Metas", recursos: "Recursos", metodologia: "Metodología" };
+/* ---------- Módulo de co-construcción con el ciudadano (WhatsApp) ----------
+   Reconstruye CONTEXTO ciudadano (problema, qué quieren lograr, familias, aportes).
+   NUNCA pregunta por campos académicos (objetivo/objetivos/metas/metodología/
+   evaluación): esos los redacta la UNCP con "Sugerir con IA". */
+type CocoOption = { label: string; formal?: string; familias?: number };
+type CocoPregunta = { dim: string; q: string; options: CocoOption[] };
+const COCO_LABEL: Record<string, string> = { problema: "Problema", objetivo: "Qué quieren lograr", familias: "Familias", aportes: "Aportes de la comunidad" };
 
-function WhatsAppModule({ exp, abiertoInicial, camposLlenos, onFill }: {
-  exp: Expediente; abiertoInicial: boolean; camposLlenos: string[]; onFill: (updates: Record<string, string>) => void;
+function WhatsAppModule({ exp, abiertoInicial, camposLlenos, onFill, onContextoActualizado }: {
+  exp: Expediente; abiertoInicial: boolean; camposLlenos: string[];
+  onFill: (updates: Record<string, string>) => void; onContextoActualizado: () => void;
 }) {
   const [open, setOpen] = useState(abiertoInicial);
   const [questions, setQuestions] = useState<CocoPregunta[] | null>(null);
+  const [contactoValido, setContactoValido] = useState<boolean | null>(null);
   const [genBusy, setGenBusy] = useState(false);
   const [resp, setResp] = useState("");
   const [interpBusy, setInterpBusy] = useState(false);
-  const [result, setResult] = useState<{ q: string; choiceLabel: string; field: string }[] | null>(null);
-  // Se generó pero, tras filtrar lo ya resuelto, no quedó nada que preguntar.
+  const [result, setResult] = useState<{ q: string; choiceLabel: string; dim: string }[] | null>(null);
+  // Caso bueno totalmente contextualizado: se generó y no quedó contexto pendiente.
   const noFaltan = !!(questions && questions.length === 0);
   const hayPreguntas = !!(questions && questions.length > 0);
+  const contactoInvalido = contactoValido === false;
 
   const generar = async () => {
     if (genBusy) return;
     setGenBusy(true); setResult(null);
     try {
-      // Mandamos los campos ámbar ya llenos para que el generador NO los repregunte.
       const res = await fetch("/api/coconstruccion/preguntas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ codigo: exp.codigo, camposLlenos }) });
       const d = await res.json();
       if (Array.isArray(d.preguntas)) setQuestions(d.preguntas);
+      if (typeof d.contactoValido === "boolean") setContactoValido(d.contactoValido);
     } catch {}
     setGenBusy(false);
   };
 
-  // wa.me: abrimos una pestaña sincrónica (evita el bloqueador) y luego le ponemos
-  // la URL que arma el servidor con el teléfono real (el front nunca lo ve crudo).
+  // wa.me: pestaña sincrónica (evita el bloqueador) + URL armada server-side con el teléfono real.
   const contactar = async () => {
-    if (!hayPreguntas) return;
+    if (!hayPreguntas || contactoInvalido) return;
     const w = window.open("about:blank", "_blank");
     try {
       const res = await fetch(`/api/expedientes/${exp.codigo}/wa-link`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preguntas: questions }) });
@@ -572,7 +577,10 @@ function WhatsAppModule({ exp, abiertoInicial, camposLlenos, onFill }: {
     try {
       const res = await fetch("/api/coconstruccion/interpretar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ codigo: exp.codigo, preguntas: questions, respuesta: resp }) });
       const d = await res.json();
-      if (d.updates && Object.keys(d.updates).length) { onFill(d.updates); setResult(d.resumen || []); }
+      // El contexto "aportes" llena el campo Recursos de B4; lo demás reconstruye el expediente.
+      if (d.recursos) onFill({ recursos: d.recursos });
+      setResult(d.resumen || []);
+      if (d.contexto && Object.keys(d.contexto).length) onContextoActualizado();
     } catch {}
     setInterpBusy(false);
   };
@@ -582,10 +590,10 @@ function WhatsAppModule({ exp, abiertoInicial, camposLlenos, onFill }: {
       <button className="wa-head" onClick={() => setOpen((o) => !o)}>
         <span className="wa-ico"><WaIcon /></span>
         <div style={{ flex: 1, textAlign: "left" }}>
-          <div className="wa-title">Co-construir con la comunidad por WhatsApp</div>
+          <div className="wa-title">Co-construir el contexto con la comunidad por WhatsApp</div>
           <div className="wa-sub">{abiertoInicial
-            ? "Esta solicitud llegó con poca información. Pregúntale a la comunidad lo que falta — fácil, con opciones numeradas."
-            : "Para los datos que solo la comunidad tiene (su meta real, plazos, aportes), pregúntale con opciones numeradas."}</div>
+            ? "Esta solicitud llegó con poca información. Reconstruye con la comunidad su contexto (problema, meta, alcance, aportes) — fácil, con opciones numeradas."
+            : "Para el contexto que solo la comunidad tiene (su problema, qué quiere lograr, cuántas familias, qué aporta), pregúntale con opciones numeradas."}</div>
         </div>
         <span className="wa-chev" style={{ transform: open ? "rotate(180deg)" : "none" }}><I.chevron s={18} /></span>
       </button>
@@ -594,8 +602,8 @@ function WhatsAppModule({ exp, abiertoInicial, camposLlenos, onFill }: {
         <div className="wa-body">
           <div className="wa-steps">
             <div className="wa-step">
-              <div className="wa-step-h"><span className="wa-step-n">1</span> La IA arma las preguntas</div>
-              <p className="wa-step-p">Solo pregunta lo que falta: nunca lo que la comunidad ya eligió con botones (meta, plazo, familias) ni lo que ya completaste en B4.</p>
+              <div className="wa-step-h"><span className="wa-step-n">1</span> La IA arma las preguntas de contexto</div>
+              <p className="wa-step-p">Solo pregunta por <strong>contexto ciudadano</strong> (problema, qué quieren lograr, familias, aportes), nunca por los campos académicos — esos los redacta la UNCP con “Sugerir con IA”.</p>
               <button className={"gbtn gbtn-secondary gbtn-sm" + (genBusy ? " busy" : "")} onClick={generar} disabled={genBusy}>
                 {genBusy ? <><span className="ai-spin dark" /> Generando…</> : <><I.wand s={15} /> {questions ? "Regenerar preguntas" : "Generar preguntas para el ciudadano"}</>}
               </button>
@@ -610,21 +618,27 @@ function WhatsAppModule({ exp, abiertoInicial, camposLlenos, onFill }: {
                 </div>
               )}
               {noFaltan && (
-                <div className="wa-nada"><I.check s={14} /> No hay nada pendiente que preguntar: la comunidad ya indicó su meta, plazo y alcance. Completa los campos académicos directamente o con “Sugerir con IA”.</div>
+                <div className="wa-nada"><I.check s={14} /> No hay contexto pendiente: la comunidad ya precisó su problema, meta y alcance. La UNCP completa los campos académicos con “Sugerir con IA”.</div>
               )}
             </div>
 
             <div className={"wa-step" + (hayPreguntas ? "" : " off")}>
               <div className="wa-step-h"><span className="wa-step-n">2</span> Envíalas por WhatsApp</div>
-              <p className="wa-step-p">Se abre WhatsApp con las preguntas listas, sobre el teléfono real del contacto (server-side).</p>
-              <button className={"gbtn gbtn-wa gbtn-sm" + (hayPreguntas ? "" : " disabled")} onClick={contactar} disabled={!hayPreguntas}>
-                <WaIcon /> Contactar por WhatsApp
-              </button>
+              {contactoInvalido ? (
+                <div className="wa-manual"><I.alert s={14} /> El contacto registrado no es válido para WhatsApp (teléfono o nombre incompletos). <strong>Márcalo para seguimiento/contacto manual</strong> — no se envía a un número inválido.</div>
+              ) : (
+                <>
+                  <p className="wa-step-p">Se abre WhatsApp con las preguntas listas, sobre el teléfono real del contacto (server-side).</p>
+                  <button className={"gbtn gbtn-wa gbtn-sm" + (hayPreguntas ? "" : " disabled")} onClick={contactar} disabled={!hayPreguntas}>
+                    <WaIcon /> Contactar por WhatsApp
+                  </button>
+                </>
+              )}
             </div>
 
             <div className={"wa-step" + (hayPreguntas ? "" : " off")}>
               <div className="wa-step-h"><span className="wa-step-n">3</span> Pega la respuesta e interprétala</div>
-              <p className="wa-step-p">La IA mapea los números contra las preguntas y completa los campos del formulario.</p>
+              <p className="wa-step-p">La IA mapea los números contra las preguntas y reconstruye el contexto del expediente.</p>
               <textarea className="wa-resp" rows={2} value={resp} onChange={(e) => setResp(e.target.value)}
                 placeholder={hayPreguntas ? 'Ej.: "1 2 1 2"   ·   o "respondo 1, 2, y somos como 15"' : "Primero genera las preguntas…"} disabled={!hayPreguntas} />
               <button className={"gbtn gbtn-primary gbtn-sm" + (interpBusy ? " busy" : "")} onClick={interpretar} disabled={!hayPreguntas || !resp.trim() || interpBusy}>
@@ -632,13 +646,13 @@ function WhatsAppModule({ exp, abiertoInicial, camposLlenos, onFill }: {
               </button>
               {result && result.length > 0 && (
                 <div className="wa-result">
-                  <div className="wa-result-h"><I.check s={14} /> Interpretado y volcado al formulario</div>
+                  <div className="wa-result-h"><I.check s={14} /> Contexto reconstruido</div>
                   {result.map((r, i) => (
                     <div className="wa-result-row" key={i}>
                       <span className="wa-r-q">{r.q}</span>
                       <span className="wa-r-arrow"><I.arrowR s={13} /></span>
                       <span className="wa-r-a">{r.choiceLabel}</span>
-                      <span className="wa-r-field">→ {COCO_LABEL[r.field] || r.field}</span>
+                      <span className="wa-r-field">→ {COCO_LABEL[r.dim] || r.dim}</span>
                     </div>
                   ))}
                 </div>
@@ -655,9 +669,9 @@ function WhatsAppModule({ exp, abiertoInicial, camposLlenos, onFill }: {
   );
 }
 
-function Solicitud({ exp, form, onChangeForm, yaListo, onClose }: {
+function Solicitud({ exp, form, onChangeForm, yaListo, onClose, onContextoActualizado }: {
   exp: Expediente; form: B4Form; onChangeForm: (updater: (p: B4Form) => B4Form) => void;
-  yaListo: boolean; onClose: (opts: { listo: boolean; msg: string }) => void;
+  yaListo: boolean; onClose: (opts: { listo: boolean; msg: string }) => void; onContextoActualizado: () => void;
 }) {
   const c = catOf(exp.categoria)!;
   const pobre = exp.datos_incompletos; // llegó con poca info: co-creación, no rechazo
@@ -789,11 +803,12 @@ function Solicitud({ exp, form, onChangeForm, yaListo, onClose }: {
         )}
       </div>
 
-      {/* Co-construcción con la comunidad por WhatsApp.
-          camposLlenos = campos ámbar que la IA NO debe repreguntar (ya llenos en B4). */}
+      {/* Co-construcción del CONTEXTO con la comunidad por WhatsApp.
+          camposLlenos informa si el contexto "aportes" (campo Recursos) ya está cubierto. */}
       <WhatsAppModule exp={exp} abiertoInicial={!!pobre}
         camposLlenos={["objetivoGen", "metas", "recursos", "metodologia"].filter((k) => String((f as any)[k] || "").trim())}
-        onFill={(updates) => { setF((p) => ({ ...p, ...updates })); flash("La IA interpretó la respuesta y completó " + Object.keys(updates).length + " campo(s)."); }} />
+        onFill={(updates) => { setF((p) => ({ ...p, ...updates })); flash("Contexto reconstruido: se completó el aporte de la comunidad."); }}
+        onContextoActualizado={onContextoActualizado} />
 
       <div className="b4-grid">
         <div className="b4-block pre">
@@ -1054,6 +1069,19 @@ export default function PanelPage() {
     } catch {}
   };
 
+  // Tras reconstruir contexto por WhatsApp, re-lee el expediente para que la columna
+  // verde de B4 y "Sugerir con IA" reflejen el contexto reconstruido (y se quite la basura).
+  const refrescarSel = async (codigo: string) => {
+    try {
+      const res = await fetch(`/api/expedientes/${codigo}`, { cache: "no-store" });
+      if (res.ok) {
+        const d = await res.json();
+        if (d.expediente) setSel((prev) => (prev && prev.codigo === codigo ? d.expediente : prev));
+      }
+    } catch {}
+    cargar();
+  };
+
   if (auth === null) {
     return <div className="login-shell"><div style={{ color: "var(--slate-400)", fontFamily: "var(--font-head)" }}>Cargando…</div></div>;
   }
@@ -1064,7 +1092,7 @@ export default function PanelPage() {
       <CrmRail view={view} setView={(v) => setView(v)} onLogout={onLogout} />
       {view === "bandeja" && <Bandeja lang={lang} rows={rows} onOpen={(e) => { setSel(e); setView("detalle"); }} />}
       {view === "detalle" && sel && <Detalle lang={lang} exp={sel} b4Form={b4FormFor(sel.codigo)} prepared={!!prepared[sel.codigo]} initialToast={pendingToast} onClearToast={() => setPendingToast("")} onBack={() => { setView("bandeja"); cargar(); }} onArmar={() => setView("solicitud")} onEstado={onEstado} />}
-      {view === "solicitud" && sel && <Solicitud exp={sel} form={b4FormFor(sel.codigo)} onChangeForm={(u) => onChangeB4Form(sel.codigo, u)} yaListo={!!prepared[sel.codigo]} onClose={({ listo, msg }) => { setPrepared((p) => ({ ...p, [sel.codigo]: listo })); if (msg) setPendingToast(msg); setView("detalle"); }} />}
+      {view === "solicitud" && sel && <Solicitud exp={sel} form={b4FormFor(sel.codigo)} onChangeForm={(u) => onChangeB4Form(sel.codigo, u)} yaListo={!!prepared[sel.codigo]} onClose={({ listo, msg }) => { setPrepared((p) => ({ ...p, [sel.codigo]: listo })); if (msg) setPendingToast(msg); setView("detalle"); }} onContextoActualizado={() => refrescarSel(sel.codigo)} />}
       {view === "tablero" && <Tablero rows={rows} />}
     </div>
   );

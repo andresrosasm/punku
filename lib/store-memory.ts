@@ -142,6 +142,21 @@ export async function revelarContacto(codigo: string): Promise<ContactoInput | n
   return d.contactos.get(codigo.trim().toUpperCase()) || null;
 }
 
+export async function actualizarContextoExpediente(
+  codigo: string,
+  patch: { resultado_deseado?: string; familias_afectadas?: number; resumen_formal?: string; datos_incompletos?: boolean }
+): Promise<Expediente | null> {
+  const d = db();
+  const exp = d.expedientes.get(codigo.trim().toUpperCase());
+  if (!exp) return null;
+  if (typeof patch.resultado_deseado === "string") exp.resultado_deseado = patch.resultado_deseado;
+  if (typeof patch.familias_afectadas === "number") exp.familias_afectadas = patch.familias_afectadas;
+  if (typeof patch.resumen_formal === "string") exp.resumen_formal = patch.resumen_formal;
+  if (typeof patch.datos_incompletos === "boolean") exp.datos_incompletos = patch.datos_incompletos;
+  exp.actualizado_en = ahora();
+  return exp;
+}
+
 /* ---------- Borrador de B4 (en memoria) ---------- */
 export async function cargarBorrador(codigo: string): Promise<{ form: B4Form; listo: boolean } | null> {
   const k = codigo.trim().toUpperCase();

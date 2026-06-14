@@ -649,4 +649,6 @@ h1,h2,h3,h4{font-family:var(--font-head);margin:0;font-weight:700;letter-spacing
 .wa-honest strong{color:var(--slate-800);}
 .wa-nada{display:flex;align-items:flex-start;gap:7px;font-size:12px;color:var(--green-700);background:var(--green-50);border:1px solid var(--green-100);border-radius:10px;padding:9px 11px;line-height:1.4;font-weight:500;margin-top:2px;}
 .wa-nada svg{flex:none;margin-top:1px;color:var(--green-600);}
+.wa-manual{display:flex;align-items:flex-start;gap:7px;font-size:12px;color:var(--gold-600);background:var(--gold-100);border:1px solid var(--gold-200);border-radius:10px;padding:9px 11px;line-height:1.4;font-weight:500;}
+.wa-manual svg{flex:none;margin-top:1px;}
 @media (max-width:920px){ .wa-steps{grid-template-columns:1fr;} }

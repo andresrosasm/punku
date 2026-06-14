@@ -8,7 +8,7 @@
    ============================================================ */
 import { NextRequest, NextResponse } from "next/server";
 import { interpretarRespuestaCoco, type CocoPregunta } from "@/lib/ai";
-import { obtenerExpediente } from "@/lib/store";
+import { obtenerExpediente, actualizarContextoExpediente } from "@/lib/store";
 import { tieneSesion } from "@/lib/panel-auth";
 
 export const dynamic = "force-dynamic";
@@ -30,5 +30,13 @@ export async function POST(req: NextRequest) {
   if (!data) return NextResponse.json({ error: "Expediente no encontrado" }, { status: 404, headers: NO_STORE });
 
   const out = await interpretarRespuestaCoco(data.expediente, preguntas, respuesta);
-  return NextResponse.json(out, { headers: NO_STORE });
+  // Persistir el CONTEXTO reconstruido en el expediente (columnas existentes).
+  if (out.contexto && Object.keys(out.contexto).length > 0) {
+    await actualizarContextoExpediente(codigo, out.contexto);
+  }
+  // `recursos` (aportes de la comunidad) es contexto que llena el campo Recursos de B4.
+  return NextResponse.json(
+    { recursos: out.recursos ?? null, contexto: out.contexto, resumen: out.resumen, generado_por: out.generado_por },
+    { headers: NO_STORE }
+  );
 }

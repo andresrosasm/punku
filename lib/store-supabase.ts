@@ -216,6 +216,24 @@ export async function revelarContacto(codigo: string): Promise<ContactoInput | n
   return { nombre_representante: c.nombre_representante, telefono: c.telefono, comunidad: exp.comunidad, es_facilitador: c.es_facilitador };
 }
 
+export async function actualizarContextoExpediente(
+  codigo: string,
+  patch: { resultado_deseado?: string; familias_afectadas?: number; resumen_formal?: string; datos_incompletos?: boolean }
+): Promise<Expediente | null> {
+  await ensureSeed();
+  const sb = supabaseAdmin();
+  const { data: exp } = await sb.from("expedientes").select("id").eq("codigo", codigo.trim().toUpperCase()).maybeSingle();
+  if (!exp) return null;
+  const upd: Record<string, unknown> = { actualizado_en: new Date().toISOString() };
+  if (typeof patch.resultado_deseado === "string") upd.resultado_deseado = patch.resultado_deseado;
+  if (typeof patch.familias_afectadas === "number") upd.familias_afectadas = patch.familias_afectadas;
+  if (typeof patch.resumen_formal === "string") upd.resumen_formal = patch.resumen_formal;
+  if (typeof patch.datos_incompletos === "boolean") upd.datos_incompletos = patch.datos_incompletos;
+  await sb.from("expedientes").update(upd).eq("id", exp.id);
+  const { data: updated } = await sb.from("expedientes").select("*").eq("id", exp.id).maybeSingle();
+  return updated ? toExp(updated) : null;
+}
+
 /* ---------- Borrador de B4 (tabla borradores_b4, 1:1 con expedientes) ---------- */
 function rowToForm(r: any): B4Form {
   return {
