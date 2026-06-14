@@ -151,6 +151,20 @@ export const FAC_POR_CAT: Record<CatId, string[]> = {
   infra: ["Ingeniería Civil"],
 };
 
+/** Heurística determinista de "texto basura/sin sustancia" — respaldo cuando no
+ *  hay IA. Detecta mash de teclado (corridas largas de consonantes), texto muy
+ *  corto o con poca proporción de letras. Compartida por servidor (fallback de la
+ *  evaluación Haiku) y cliente (base del % de B4), para no divergir. */
+export function pareceBasura(texto: string): boolean {
+  const t = (texto || "").trim();
+  if (t.length < 8) return true;
+  // Corrida de 5+ consonantes seguidas = mash de teclado (ej. "kakdqñlkfwañlkfe").
+  if (/[bcdfghjklmnñpqrstvwxyz]{5,}/i.test(t)) return true;
+  const letras = (t.match(/[a-záéíóúñ]/gi) || []).length;
+  if (letras / t.length < 0.45) return true;
+  return false;
+}
+
 export interface ExpedienteSeed {
   codigo: string;
   comunidad: string;
@@ -177,6 +191,7 @@ export interface ExpedienteSeed {
 
 /* ---------- Expedientes ficticios (CRM) ---------- */
 export const EXPEDIENTES: ExpedienteSeed[] = [
+  { codigo: "PUNKU-2026-020", comunidad: "CC Molino Viejo", distrito: "El Tambo", cat: "agro", urgencia: "media", estado: "recibido", fecha: "14 jun 2026", familias: 60, canal: "PUNKU", confianza: 55, facultades: ["Agronomía"], modalidad: "Asistencia técnica", representante: "Julia Mendoza Cruz", telefono: "987 666 777", aspiracion: "Que la comunidad mejore su situación", titulo: "Pedido con plantilla coherente pero problema basura", relato: "necesitamos algo kakdqñlkfwañlkfe asdfg no se", resumen: "La comunidad del distrito de El Tambo reporta: necesitamos algo kakdqñlkfwañlkfe asdfg no se. Afecta aproximadamente a 60 familias. Requiere orientación y acompañamiento técnico de la UNCP." },
   { codigo: "PUNKU-2026-019", comunidad: "CC Texto Ilegible", distrito: "El Tambo", cat: "educ", urgencia: "baja", estado: "recibido", fecha: "14 jun 2026", familias: 0, canal: "PUNKU", confianza: 20, facultades: ["Por confirmar"], modalidad: "Por confirmar", representante: "(ilegible)", telefono: "(reservado)", aspiracion: "", titulo: "Pedido ilegible — contacto no válido", relato: "qwerty asdf 123 ### no se", resumen: "La comunidad envió un pedido ininteligible y el contacto registrado no es válido (teléfono y nombre incompletos). PUNKU lo registró igual: no se rechaza ningún pedido. Como no se puede contactar por WhatsApp, conviene marcarlo para seguimiento/contacto manual y reconstruir el contexto cuando haya un contacto válido.", datos_incompletos: true },
   { codigo: "PUNKU-2026-018", comunidad: "CC Río Verde", distrito: "Quilcas", cat: "agua", urgencia: "baja", estado: "recibido", fecha: "14 jun 2026", familias: 0, canal: "PUNKU", confianza: 28, facultades: ["Por confirmar"], modalidad: "Por confirmar", representante: "Tomás Vera Ríos", telefono: "987 444 555", aspiracion: "", titulo: "Pedido sobre agua con poca información", relato: "el agua no se ayuda porfa no se que escribir", resumen: "La comunidad envió un pedido sobre agua con muy poca información. PUNKU lo registró igual: no se rechaza ningún pedido. Falta precisar el problema, a cuántas familias afecta y qué espera lograr. Conviene reconstruir el contexto con la comunidad por WhatsApp.", datos_incompletos: true },
   { codigo: "PUNKU-2026-017", comunidad: "CC Alto Salud", distrito: "Sicaya", cat: "salud", urgencia: "baja", estado: "recibido", fecha: "14 jun 2026", familias: 0, canal: "PUNKU", confianza: 27, facultades: ["Por confirmar"], modalidad: "Por confirmar", representante: "Lucía Roca Pari", telefono: "987 333 444", aspiracion: "", titulo: "Pedido de salud con poca información", relato: "salud ayuda no se que poner aca", resumen: "La comunidad envió un pedido de salud con muy poca información. PUNKU lo registró igual: no se rechaza ningún pedido. Falta precisar el problema, a cuántas familias afecta y qué espera lograr. Conviene reconstruir el contexto con la comunidad por WhatsApp.", datos_incompletos: true },

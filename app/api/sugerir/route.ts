@@ -17,7 +17,7 @@ export const revalidate = 0;
 export const fetchCache = "force-no-store";
 
 const NO_STORE = { "Cache-Control": "no-store, max-age=0, must-revalidate" };
-const CAMPOS: CampoB4[] = ["objetivoGen", "objetivosEsp", "metas", "evaluacion"];
+const CAMPOS: CampoB4[] = ["objetivoGen", "objetivosEsp", "metas", "metodologia", "recursos", "evaluacion"];
 
 export async function POST(req: NextRequest) {
   if (!tieneSesion(req)) {

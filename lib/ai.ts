@@ -15,7 +15,7 @@
    ============================================================ */
 import Anthropic from "@anthropic-ai/sdk";
 import type { NecesidadInput, ClasificacionIA, SugerenciaB4, Expediente } from "./types";
-import { CATEGORIES, FAC_POR_CAT, ODS_MAP, catOf, type CatId } from "./punku-data";
+import { CATEGORIES, FAC_POR_CAT, ODS_MAP, catOf, pareceBasura, type CatId } from "./punku-data";
 
 const TIMEOUT_MS = 10_000;
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
@@ -214,12 +214,14 @@ export async function estructurarNecesidad(input: NecesidadInput): Promise<Clasi
    SUGERENCIAS DE B4 (botones "Sugerir con IA")
    IA real cuando hay key; plantilla como fallback. Evalúa coherencia también.
    ============================================================ */
-export type CampoB4 = "objetivoGen" | "objetivosEsp" | "metas" | "evaluacion";
+export type CampoB4 = "objetivoGen" | "objetivosEsp" | "metas" | "metodologia" | "recursos" | "evaluacion";
 
 const INSTR_B4: Record<CampoB4, string> = {
   objetivoGen: "redacta el OBJETIVO GENERAL del proyecto en UNA sola oración formal, empezando con un verbo en infinitivo (Contribuir/Mejorar/Garantizar/Fortalecer…).",
   objetivosEsp: "redacta 3 OBJETIVOS ESPECÍFICOS, uno por línea, cada uno empezando con \"• \" y un verbo en infinitivo.",
   metas: "redacta de 1 a 3 METAS cuantitativas y verificables (con números y plazos), una por línea con \"• \".",
+  metodologia: "redacta la METODOLOGÍA DE TRABAJO en 2 a 4 líneas: enfoque participativo, fases (diagnóstico, diseño, ejecución, evaluación), técnicas y participación de la comunidad.",
+  recursos: "redacta los RECURSOS (materiales, humanos y financieros) necesarios en 2 a 3 líneas, incluyendo el aporte de la comunidad y el acompañamiento de la UNCP (estudiantes y docente).",
   evaluacion: "redacta los INDICADORES DE EVALUACIÓN Y MONITOREO, de 3 a 4 líneas verificables, una por línea con \"• \".",
 };
 
@@ -246,6 +248,12 @@ function plantillaB4(exp: Expediente, campo: CampoB4): string {
   }
   if (campo === "evaluacion") {
     return `• N.° de familias participantes y beneficiadas.\n• % de avance respecto al cronograma.\n• Cumplimiento de metas por objetivo específico.\n• Nivel de satisfacción de la comunidad (encuesta breve).`;
+  }
+  if (campo === "metodologia") {
+    return `Enfoque participativo en fases: (1) diagnóstico con la comunidad, (2) diseño técnico, (3) ejecución acompañada y (4) evaluación. Se prioriza la mano de obra y el conocimiento local de la comunidad.`;
+  }
+  if (campo === "recursos") {
+    return `Recursos humanos: equipo de estudiantes y docente asesor de la UNCP. Materiales y mano de obra aportados por la comunidad. Financiamiento a gestionar según el plan de trabajo.`;
   }
   return `• ${exp.familias_afectadas} familias beneficiadas con la intervención.\n• 1 diagnóstico y 1 plan de trabajo elaborados en 6 meses.\n• Al menos 80% de cumplimiento de las actividades programadas.`;
 }
@@ -377,15 +385,58 @@ function preguntaDe(dim: CocoDim, exp: Expediente): CocoPregunta {
   return { dim, q: "¿Con qué puede aportar la comunidad?", options: APORTES_OPTS };
 }
 
+const SUSTANCIA_SCHEMA = {
+  name: "evaluar_sustancia",
+  description: "Juzga si el PROBLEMA descrito en el expediente está claro y tiene sustancia real, o si es ininteligible/vacío/genérico (aunque la frase tenga estructura coherente y traiga número de familias).",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      problema_claro: { type: "boolean", description: "true si el problema de la comunidad se entiende y tiene contenido real; false si es ininteligible, vacío, basura/mash de teclado, o solo describe que falta información." },
+      motivo: { type: "string", description: "Motivo breve." },
+    },
+    required: ["problema_claro"],
+  },
+};
+
+/** ¿El contexto del problema es INSUFICIENTE (ininteligible/vacío/basura) y necesita
+ *  reconstrucción? Evalúa la SUSTANCIA del relato/resumen, NO la plantilla. Haiku es el
+ *  juez; fallback determinista (pareceBasura). Patrón IA aislada + fallback. */
+export async function evaluarSustanciaContexto(exp: Expediente): Promise<boolean> {
+  const det = pareceBasura(exp.resumen_formal) || pareceBasura(exp.necesidad_texto);
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return det;
+  try {
+    const client = new Anthropic({ apiKey });
+    const prompt =
+      `Eres analista de la Dirección de Proyección Social de la UNCP. Lee el problema reportado por una comunidad y juzga su SUSTANCIA, no su forma.\n` +
+      `Pon problema_claro=false si el problema es ininteligible, vacío, genérico sin contenido, o basura/mash de teclado — AUNQUE la oración tenga estructura coherente o traiga número de familias.\n` +
+      `Pon problema_claro=true solo si se entiende un problema real y concreto de la comunidad.\n\n` +
+      `Resumen del expediente: ${exp.resumen_formal || "(vacío)"}\n` +
+      `Relato de la comunidad: ${exp.necesidad_texto || "(vacío)"}\n` +
+      `Área tentativa: ${catOf(exp.categoria)?.es || exp.categoria}\n\n` +
+      `Usa la herramienta evaluar_sustancia.`;
+    const resp = await withTimeout(
+      client.messages.create({ model: MODEL, max_tokens: 256, tools: [SUSTANCIA_SCHEMA], tool_choice: { type: "tool", name: SUSTANCIA_SCHEMA.name }, messages: [{ role: "user", content: prompt }] }),
+      TIMEOUT_MS
+    );
+    const block = resp.content.find((b) => b.type === "tool_use") as { type: "tool_use"; input: any } | undefined;
+    if (block && typeof block.input?.problema_claro === "boolean") return !block.input.problema_claro;
+    return det;
+  } catch {
+    return det;
+  }
+}
+
 /* Solo se pregunta el CONTEXTO genuinamente pendiente. NUNCA campos académicos.
-   - problema: si datos_incompletos (el relato llegó basura/insuficiente).
+   - problema: si el contexto es INSUFICIENTE por sustancia (relato basura/ininteligible),
+     no solo por el flag datos_incompletos.
    - objetivo: si la comunidad no eligió aspiración (resultado_deseado vacío).
    - familias: si no hay número de familias.
    - aportes:  si el campo Recursos (contexto) aún está vacío.
-   En caso basura SIEMPRE incluye "problema" -> el módulo nunca queda sin preguntas. */
-function dimensionesPendientes(exp: Expediente, recursosLleno: boolean): CocoDim[] {
+   Si el problema es insuficiente SIEMPRE incluye "problema" -> el módulo no queda sin preguntas. */
+function dimensionesPendientes(exp: Expediente, recursosLleno: boolean, insuficiente: boolean): CocoDim[] {
   const out: CocoDim[] = [];
-  if (exp.datos_incompletos) out.push("problema");
+  if (insuficiente) out.push("problema");
   if (!(exp.resultado_deseado && exp.resultado_deseado.trim())) out.push("objetivo");
   if (!exp.familias_afectadas) out.push("familias");
   if (!recursosLleno) out.push("aportes");
@@ -427,7 +478,9 @@ const PREGUNTAS_SCHEMA = {
 
 export async function generarPreguntasCoco(exp: Expediente, camposLlenos: string[] = []): Promise<{ preguntas: CocoPregunta[]; generado_por: "ia" | "banco" | "ninguno" }> {
   const recursosLleno = (camposLlenos || []).includes("recursos");
-  const dims = dimensionesPendientes(exp, recursosLleno);
+  // El "problema" se pregunta si el contexto es INSUFICIENTE por sustancia (no solo por el flag).
+  const insuficiente = !!exp.datos_incompletos || (await evaluarSustanciaContexto(exp));
+  const dims = dimensionesPendientes(exp, recursosLleno, insuficiente);
   // En caso bueno totalmente contextualizado puede no faltar nada; en basura SIEMPRE hay "problema".
   if (dims.length === 0) return { preguntas: [], generado_por: "ninguno" };
 

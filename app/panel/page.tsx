@@ -11,7 +11,7 @@ import { PunkuLogo } from "@/components/MountainDoor";
 import { CatGlyph, I } from "@/components/icons";
 import {
   CATEGORIES, ESTADOS, ESTADO_STYLE, FACULTADES, ODS_MAP, AREA_MAP, AREAS_PS,
-  catOf, type Lang, type CatId, type EstadoId,
+  catOf, pareceBasura, type Lang, type CatId, type EstadoId,
 } from "@/lib/punku-data";
 import type { Expediente } from "@/lib/types";
 import { modalidadDe, justificacionIA, uncpPrintHtml, type B4Form } from "@/lib/uncp-doc";
@@ -674,7 +674,9 @@ function Solicitud({ exp, form, onChangeForm, yaListo, onClose, onContextoActual
   yaListo: boolean; onClose: (opts: { listo: boolean; msg: string }) => void; onContextoActualizado: () => void;
 }) {
   const c = catOf(exp.categoria)!;
-  const pobre = exp.datos_incompletos; // llegó con poca info: co-creación, no rechazo
+  // "pobre" = contexto sin sustancia: flag de registro O problema basura/ininteligible
+  // (sustancia, no plantilla). Hace que el % arranque bajo y se abra la co-construcción.
+  const pobre = exp.datos_incompletos || pareceBasura(exp.resumen_formal);
   const modal = modalidadDe(exp);
   const ods = pobre ? "Por confirmar" : (ODS_MAP[exp.categoria] || "ODS 17 · Alianzas");
   const area = pobre ? "Por confirmar" : (AREA_MAP[exp.categoria] || "Intervención Tecnológica");
@@ -691,6 +693,24 @@ function Solicitud({ exp, form, onChangeForm, yaListo, onClose, onContextoActual
   const addStu = () => setF((p) => ({ ...p, estudiantes: [...p.estudiantes, { nombre: "", dni: "", codigo: "" }] }));
   const delStu = (i: number) => setF((p) => ({ ...p, estudiantes: p.estudiantes.filter((_, j) => j !== i) }));
   const wc = exp.titulo.trim().split(/\s+/).length;
+
+  // Al abrir B4, evalúa la SUSTANCIA del contexto (Haiku + fallback determinista): si el
+  // problema es basura disfrazada de plantilla coherente, marca datos_incompletos -> el %
+  // arranca bajo y se abre la co-construcción. Una vez por código.
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/expedientes/${exp.codigo}/evaluar-contexto`, { method: "POST" });
+        if (!cancel && res.ok) {
+          const d = await res.json();
+          if (d.cambio) onContextoActualizado();
+        }
+      } catch {}
+    })();
+    return () => { cancel = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exp.codigo]);
 
   // Progreso vivo (handoff §2.3): la base es lo que PUNKU ya pre-llenó (70% si la
   // info llegó rica, 26% si llegó pobre); los 9 campos académicos editables suben el
@@ -714,7 +734,7 @@ function Solicitud({ exp, form, onChangeForm, yaListo, onClose, onContextoActual
   // "Sugerir con IA": llama al motor real (/api/sugerir). Si la IA no está
   // disponible cae a plantilla; si el expediente no es coherente, avisa y no rellena.
   const [sugiriendo, setSugiriendo] = useState("");
-  const sugerir = async (campo: "objetivoGen" | "objetivosEsp" | "metas" | "evaluacion") => {
+  const sugerir = async (campo: "objetivoGen" | "objetivosEsp" | "metas" | "metodologia" | "recursos" | "evaluacion") => {
     if (sugiriendo) return;
     setSugiriendo(campo);
     try {
@@ -846,7 +866,7 @@ function Solicitud({ exp, form, onChangeForm, yaListo, onClose, onContextoActual
           <EdField label="Metas (cuantitativas)" pending={!f.metas.trim()} ai loading={sugiriendo === "metas"} onAi={() => sugerir("metas")}>
             <textarea className="ed-ta" rows={2} value={f.metas} onChange={(e) => set("metas", e.target.value)} placeholder="Ej.: 1 diagnóstico; 120 familias capacitadas; 1 plan comunal en 6 meses." />
           </EdField>
-          <EdField label="Metodología de trabajo" pending={!f.metodologia.trim()}>
+          <EdField label="Metodología de trabajo" pending={!f.metodologia.trim()} ai loading={sugiriendo === "metodologia"} onAi={() => sugerir("metodologia")}>
             <textarea className="ed-ta" rows={2} value={f.metodologia} onChange={(e) => set("metodologia", e.target.value)} placeholder="Métodos y técnicas, diagnóstico, fases y participación de la comunidad." />
           </EdField>
           <EdField label="Cronograma / periodo de ejecución" pending={!(f.fechaIni && f.fechaFin)}>
@@ -855,7 +875,7 @@ function Solicitud({ exp, form, onChangeForm, yaListo, onClose, onContextoActual
               <label className="date-lbl">Culminación<input type="date" className="ed-input" value={f.fechaFin} onChange={(e) => set("fechaFin", e.target.value)} /></label>
             </div>
           </EdField>
-          <EdField label="Recursos (materiales, humanos, financieros)" pending={!f.recursos.trim()}>
+          <EdField label="Recursos (materiales, humanos, financieros)" pending={!f.recursos.trim()} ai loading={sugiriendo === "recursos"} onAi={() => sugerir("recursos")}>
             <textarea className="ed-ta" rows={2} value={f.recursos} onChange={(e) => set("recursos", e.target.value)} placeholder="Qué se necesita para ejecutar el proyecto." />
           </EdField>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
