@@ -528,7 +528,7 @@ export interface CocoResumen { q: string; choiceLabel: string; dim: CocoDim }
 export interface CocoContexto { resultado_deseado?: string; familias_afectadas?: number; resumen_formal?: string; datos_incompletos?: boolean }
 
 /** Parser DETERMINISTA: mapea números↔opciones y reconstruye el CONTEXTO ciudadano. */
-function interpretarDeterminista(exp: Expediente, preguntas: CocoPregunta[], respuesta: string): { contexto: CocoContexto; recursos?: string; resumen: CocoResumen[] } {
+function interpretarDeterminista(exp: Expediente, preguntas: CocoPregunta[], respuesta: string): { contexto: CocoContexto; recursos?: string; resumen: CocoResumen[]; resumenRegenerado: boolean } {
   const nums = (respuesta.match(/\d+/g) || []).map(Number);
   const resumen: CocoResumen[] = [];
   const ans: Partial<Record<CocoDim, { choice: CocoOption; n: number }>> = {};
@@ -542,10 +542,13 @@ function interpretarDeterminista(exp: Expediente, preguntas: CocoPregunta[], res
 
   const contexto: CocoContexto = {};
   let recursos: string | undefined;
+  let resumenRegenerado = false;
   if (ans.objetivo?.choice.formal) contexto.resultado_deseado = ans.objetivo.choice.formal;
   if (ans.familias?.choice.familias) contexto.familias_afectadas = ans.familias.choice.familias;
-  if (ans.aportes?.choice.formal) recursos = `Aporte de la comunidad: ${ans.aportes.choice.formal}. La UNCP aporta asesoría técnica y acompañamiento de estudiantes y docente.`;
+  const aporte = ans.aportes?.choice.formal;
+  if (aporte) recursos = `Aporte de la comunidad: ${aporte}. La UNCP aporta asesoría técnica y acompañamiento de estudiantes y docente.`;
   if (ans.problema?.choice.formal) {
+    // CASO BASURA: el contexto era ilegible → se reconstruye COMPLETO (incluye el aporte) y se pule.
     const prob = ans.problema.choice.formal;
     const obj = contexto.resultado_deseado || (exp.resultado_deseado || "");
     const fam = contexto.familias_afectadas ?? exp.familias_afectadas;
@@ -553,10 +556,15 @@ function interpretarDeterminista(exp: Expediente, preguntas: CocoPregunta[], res
       `La comunidad de ${exp.comunidad} (${exp.distrito}, Huancayo) reporta: ${prob}.` +
       (obj ? ` Busca ${obj}.` : "") +
       (fam ? ` Afecta aproximadamente a ${fam} familias.` : "") +
+      (aporte ? ` La comunidad aporta ${aporte}.` : "") +
       ` Requiere acompañamiento técnico de la UNCP. (Contexto reconstruido con la comunidad por co-construcción.)`;
     contexto.datos_incompletos = false; // ya no es "basura": el contexto se reconstruyó
+    resumenRegenerado = true;
+  } else if (aporte && !/La comunidad aporta/i.test(exp.resumen_formal || "")) {
+    // CASO BUENO: el resumen ya es válido → NO se reescribe ni se pule; solo se ANEXA el aporte (aditivo, idempotente).
+    contexto.resumen_formal = `${(exp.resumen_formal || "").trimEnd()} La comunidad aporta ${aporte}.`.trim();
   }
-  return { contexto, recursos, resumen };
+  return { contexto, recursos, resumen, resumenRegenerado };
 }
 
 const PULIR_SCHEMA = {
@@ -574,7 +582,7 @@ const PULIR_SCHEMA = {
 export async function interpretarRespuestaCoco(exp: Expediente, preguntas: CocoPregunta[], respuesta: string): Promise<{ contexto: CocoContexto; recursos?: string; resumen: CocoResumen[]; generado_por: "parser" | "ia" }> {
   const base = interpretarDeterminista(exp, preguntas, respuesta);
   const claves: Record<string, string> = {};
-  if (base.contexto.resumen_formal) claves.resumen_formal = base.contexto.resumen_formal;
+  if (base.contexto.resumen_formal && base.resumenRegenerado) claves.resumen_formal = base.contexto.resumen_formal;
   if (base.recursos) claves.recursos = base.recursos;
   if (Object.keys(claves).length === 0) return { ...base, generado_por: "parser" };
 
