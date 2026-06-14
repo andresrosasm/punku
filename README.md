@@ -108,7 +108,7 @@ reference/              ← lineamientos-UNCP-2026.pdf (formato oficial)
 
 ### Orden de lectura de la documentación
 1. `docs/specs/00_contexto_proyecto.md` — el qué y el por qué (spec madre).
-2. `docs/design/README.md` + abrir `docs/design/PUNKU - Prototipo.html` — la verdad visual.
+2. **La verdad visual oficial es la demo en vivo:** https://punku-uncp.vercel.app (interactiva, de un clic). El `docs/design/README.md` + el prototipo `docs/design/PUNKU - Prototipo.html` son **referencia de diseño**, no la demo (el HTML requiere un servidor local; no abre con doble clic por CORS).
 3. `docs/specs/02_modelo_datos.md` — el esquema de datos.
 4. `docs/specs/01, 03, 04, 05, 06` — ingesta, IA, CRM, arquitectura, seguridad.
 5. `docs/specs/HANDOFF_Claude_Code.md` — cómo se orquestó la construcción.
