@@ -250,9 +250,11 @@ function StepGoal({ lang, cat, aspiracion, setAspiracion, urgencia, setUrgencia,
   );
 }
 
-function Contact({ lang, data, set, onFinish, onBack }: any) {
-  const ok = data.nombre && data.comunidad && data.distrito && data.tel;
-  const F = ({ k, label, ph, icon, type }: any) => (
+// IMPORTANTE: a nivel de MÓDULO, no dentro de Contact. Si se define dentro, React
+// recrea el componente en cada render y el input pierde el foco tras cada tecla
+// (solo se escribía la primera letra). Aquí su identidad es estable.
+function ContactField({ data, set, k, label, ph, icon, type }: any) {
+  return (
     <>
       <label className="fld-label">{label}</label>
       <div className="fld">
@@ -262,6 +264,10 @@ function Contact({ lang, data, set, onFinish, onBack }: any) {
       </div>
     </>
   );
+}
+
+function Contact({ lang, data, set, onFinish, onBack }: any) {
+  const ok = data.nombre && data.comunidad && data.distrito && data.tel;
   return (
     <div className="fade-in">
       <div className="progress-wrap">
@@ -275,10 +281,10 @@ function Contact({ lang, data, set, onFinish, onBack }: any) {
         <h1>{t("contact_title", lang)}</h1>
         <p style={{ color: "var(--ink-70)", fontSize: 14.5, marginTop: 8 }}>{t("contact_hint", lang)}</p>
         <div style={{ marginTop: 8 }}>
-          <F k="nombre" label={t("c_nombre", lang)} ph="Ej. María Quispe" icon={<I.users s={20} />} />
-          <F k="comunidad" label={t("c_comunidad", lang)} ph="Ej. CC Sumac Pampa" icon={<I.pin s={20} />} />
-          <F k="distrito" label={t("c_distrito", lang)} ph="Ej. Sapallanga" icon={<I.pin s={20} />} />
-          <F k="tel" label={t("c_tel", lang)} ph="Ej. 9xx xxx xxx" icon={<I.phone s={20} />} type="tel" />
+          <ContactField data={data} set={set} k="nombre" label={t("c_nombre", lang)} ph="Ej. María Quispe" icon={<I.users s={20} />} />
+          <ContactField data={data} set={set} k="comunidad" label={t("c_comunidad", lang)} ph="Ej. CC Sumac Pampa" icon={<I.pin s={20} />} />
+          <ContactField data={data} set={set} k="distrito" label={t("c_distrito", lang)} ph="Ej. Sapallanga" icon={<I.pin s={20} />} />
+          <ContactField data={data} set={set} k="tel" label={t("c_tel", lang)} ph="Ej. 9xx xxx xxx" icon={<I.phone s={20} />} type="tel" />
         </div>
         <div className="privacy-note">
           <span style={{ color: "var(--green-700)", flex: "none", marginTop: 1 }}><I.shield s={20} /></span>
