@@ -71,6 +71,16 @@
 - **API de IA**: servicio externo llamado solo desde las API routes (key en variable de entorno de Vercel).
 - Sin servidores propios que administrar en el MVP. Todo gestionado y gratuito.
 
+> **Estado de implementación (MVP construido):** la capa de datos es un **facade**
+> (`lib/store.ts`) que elige el almacén según el entorno, en cada llamada:
+> con las variables de Supabase presentes usa **Supabase como principal**
+> (`lib/store-supabase.ts`, persistencia real); sin ellas, cae a un **almacén en
+> memoria** sembrado con datos ficticios (`lib/store-memory.ts`). Las API routes
+> y el frontend no cambian: misma interfaz async. En el despliegue de demo,
+> Supabase está activo y persiste de verdad; el almacén en memoria es la red de
+> seguridad para correr sin setup. El **motor de IA** (Claude Haiku) también
+> está activo tras su interfaz aislada, con fallback a reglas (ver spec 03).
+
 ## 6. Comunicación entre componentes
 
 | De → A | Cómo | Seguridad |
@@ -78,7 +88,14 @@
 | Frontend → Backend | fetch a API routes (mismo dominio) | sin llaves en cliente |
 | Backend → Supabase | SDK de Supabase | service role solo en server |
 | Backend → IA | HTTPS a la API | key en variable de entorno |
-| Frontend → Supabase (lecturas públicas) | anon key | protegida por RLS |
+
+> **Nota de implementación:** en el MVP construido el **frontend NUNCA consulta
+> Supabase directamente** — toda lectura/escritura (incluida la consulta
+> ciudadana por código) pasa por las API routes, que usan la service_role en el
+> servidor. La anon key queda como camino previsto a futuro; hoy el aislamiento
+> es total (ningún acceso a datos desde el cliente). Las respuestas de lectura
+> de estado mutable van con `Cache-Control: no-store` para que el cambio del CRM
+> se refleje al instante en la consulta del ciudadano.
 
 ## 7. Decisiones justificadas
 

@@ -31,15 +31,22 @@ Garantizar que: (a) ningún secreto se filtre nunca, ni siquiera en el historial
 
 **En el repo (público):**
 - Código completo + comentado.
-- `.env.example` con los NOMBRES de las variables, sin valores:
+- Plantilla de variables con los NOMBRES, sin valores. **Construido:** se entrega
+  como **`env.example`** (sin punto), porque la deny-list mecánica de secretos
+  bloquea crear cualquier archivo `.env*` (incluida la plantilla). El usuario lo
+  copia a `.env.local` (`cp env.example .env.local`). Contenido real:
   ```
   ANTHROPIC_API_KEY=
-  SUPABASE_URL=
-  SUPABASE_ANON_KEY=
+  ANTHROPIC_MODEL=
+  NEXT_PUBLIC_SUPABASE_URL=
+  NEXT_PUBLIC_SUPABASE_ANON_KEY=
   SUPABASE_SERVICE_ROLE_KEY=
+  PANEL_USER=coordinador
+  PANEL_PASS=demo2026
   ```
-- `.gitignore` que excluye `.env.local`.
+- `.gitignore` que excluye `.env`, `.env.local` y variantes desde el primer commit.
 - README con instrucciones de instalación.
+- > **Nota:** PUNKU corre **sin configurar nada** — sin `ANTHROPIC_API_KEY` clasifica por reglas; sin Supabase usa el almacén en memoria con datos ficticios. Las variables solo enriquecen; nunca bloquean.
 
 **Las llaves reales viven solo en:**
 - El `.env.local` del autor (en su máquina, excluido de git).

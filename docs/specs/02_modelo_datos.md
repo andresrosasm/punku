@@ -39,8 +39,20 @@ Definir la estructura de datos mínima y suficiente para que PUNKU capture, estr
 | origen_registro | text | ciudadano / facilitador (mide impacto de la arquitectura social) |
 | clasificado_por | text | ia / reglas (trazabilidad del método) |
 | confianza | float | Nivel de confianza de la clasificación IA (ej. 0.92) — explicabilidad |
+| titulo | text | Título tentativo del proyecto (derivado del relato; alimenta B4) |
+| objetivo_sugerido | text | Objetivo general sugerido por la IA (paso E + relato; alimenta B4) |
+| meta_sugerida | text | Meta cuantitativa tentativa sugerida por la IA (alimenta B4) |
 | creado_en | timestamp | Fecha de ingreso |
 | actualizado_en | timestamp | Última actualización de estado |
+
+> **Estado de implementación (MVP construido):** el esquema completo vive en
+> `supabase/schema.sql`. La capa de datos (`lib/store.ts`) es un **facade** que
+> usa **Supabase como almacén principal** cuando están las variables de entorno
+> (`NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`), y **cae a un almacén
+> en memoria** sembrado con los 7 expedientes ficticios cuando no las hay. Esto
+> garantiza que la demo nunca dependa de un servicio externo: con Supabase
+> configurado persiste de verdad (crear en `/comunidad` aparece en `/panel` y la
+> consulta por código refleja el estado); sin él, corre igual con datos ficticios.
 
 ### Tabla `contactos` (datos sensibles — aislados)
 | Campo | Tipo | Descripción |

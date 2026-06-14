@@ -108,6 +108,8 @@ Mismo destino interno (Solicitud → Clasificación → CRM), solo cambia el ton
 ## 6. Decisiones con rango de maniobra
 
 > **RANGO DE MANIOBRA — Entrada de audio:** ideal para baja alfabetización, pero puede agregar complejidad técnica. Si el tiempo aprieta, el MVP usa solo texto libre + botones; el audio queda como roadmap. Se confirma al construir.
+>
+> **Construido:** el MVP usa texto libre + botones. Los elementos de **audio** ("O cuéntalo hablando" / "🎙️ hablando") y de **foto** ("Agregar una foto" en Emergencias) están presentes pero, al tocarlos, muestran un mensaje de **fase 2 (roadmap)** con tono de potencial futuro — no se ocultan, para comunicar la visión sin prometer de más.
 
 > **RANGO DE MANIOBRA — Niveles del árbol:** 3-4 pasos es el objetivo. Si un área necesita más, se mantiene en 4 máximo para no cansar. Se afina en Claude Design.
 
@@ -115,7 +117,7 @@ Mismo destino interno (Solicitud → Clasificación → CRM), solo cambia el ton
 
 - **Usuario no completa el árbol:** se permite saltar al texto libre directo ("solo cuéntanos qué pasa") → la IA clasifica desde el relato.
 - **La IA falla o no responde:** fallback a clasificación por reglas (palabras clave del árbol) → el expediente se genera igual con la categoría del árbol. La experiencia NO se cae. (Ver spec 03.)
-- **Usuario pierde su código:** en el MVP, puede volver a consultar con nombre + comunidad (búsqueda simple). Recuperación robusta queda a roadmap.
+- **Usuario pierde su código:** la recuperación por nombre + comunidad queda como **fase 2 (roadmap)**. En el MVP construido, el enlace "Perdí mi código" muestra un mensaje claro de función futura, en tono amable (no error).
 - **Sin conexión a mitad del flujo:** mensaje claro "guarda esto y reintenta"; no se pierde lo avanzado si es posible (mejor esfuerzo en MVP).
 
 ## 8. Requisitos de seguridad (heredados de spec 06)

@@ -60,6 +60,17 @@ Con ese JSON + los datos del árbol se crea el Expediente Territorial (spec 02).
 - **Proveedor:** API de Claude (modelo Haiku) — elegido por velocidad de implementación, estabilidad en demo en vivo, y soporte nativo de salida estructurada (JSON confiable sin alucinar campos).
 - **Candados:** key solo en backend (variable de entorno), saldo limitado, modelo barato. (Ver spec 06.)
 
+> **Estado de implementación (MVP construido):** la IA real **está activa y
+> clasificando**. `lib/ai.ts` implementa `estructurarNecesidad()` llamando a
+> Claude Haiku (`ANTHROPIC_API_KEY` en el servidor) con **tool use / salida
+> estructurada** validada contra esquema y **timeout de 10 s**. Verificado en
+> vivo: ante un caso ambiguo ("niños enfermos por el agua del pozo") la IA
+> dedujo `clasificado_por: ia`, confianza 0.85, modalidad polivalente, facultades
+> cruzadas (Medicina Humana + Ing. Civil) y **ODS 6 (Agua)** mirando la causa
+> raíz, no el síntoma — algo que el fallback por reglas no haría. Si falta la
+> key o la IA falla/timeout, cae a reglas (`clasificado_por: reglas`, confianza
+> fija ~0.6) y el expediente se crea igual. **La demo nunca se cae.**
+
 ### Tiempo 2 — Implementación real / Producción
 - **Migración a soberanía de datos y costo cero recurrente**, tal como recomendó el mentor de IA: reemplazar el proveedor comercial por un **modelo abierto (DeepSeek u otro) corriendo on-premise** sobre infraestructura nacional/institucional — por ejemplo **Huawei Cloud o un servidor de la OTIC-UNCP**.
 - Beneficio: ningún dato sale de la universidad; cero costo por token; cumplimiento total de soberanía de datos del Estado.

@@ -31,6 +31,7 @@ El **Coordinador de enlace territorial** — rol que ya existe (la secretaria de
 - **Cambio de estado en 1 clic:** Recibido → En revisión → Derivado → Atendido → Cerrado.
 - Campo de nota opcional al cambiar estado (queda en el historial).
 - **Acción "Derivar" (estado + destino):** al derivar se registra el **destino** — una facultad (ej. "Ingeniería Ambiental") o "Otra entidad" (ONG/gobierno regional). Esto deja el timeline más claro. Marcar como "derivable a otra entidad" deja el expediente visible como necesidad no atendida por la UNCP, sin construir el flujo externo completo (roadmap). Sin workflow complejo: solo estado + destino.
+- **Acción "Enviar a la facultad" (simulación de correo) — construido:** abre una ventana modal que **previsualiza el correo** tal como saldría en producción: destinatario (placeholder con la facultad sugerida por la IA), asunto auto-armado (`Solicitud de proyección social — [comunidad] — deriva a [facultad]`), cuerpo con el resumen formal + datos clave (comunidad, distrito, familias, categoría, urgencia, código), y **dos adjuntos reales descargables** (`solicitud-[codigo].pdf` en formato UNCP y `expediente-[codigo].csv`). Botón "Enviar" → toast "Correo preparado para la facultad ✓ (simulación)". Lleva un **rótulo honesto**: los archivos son reales y descargables, pero el envío es una simulación; en producción, con el dominio institucional de la UNCP, el correo se enviaría automáticamente con un clic. Es frontend puro (no conecta servidor de correo).
 
 ### Vista 3 — Tablero resumen (opcional, si da el tiempo)
 - Conteos simples: total de solicitudes, por estado, por área, por distrito.
@@ -45,6 +46,7 @@ Dos bloques claros:
 - **"Completa para formalizar" (cajas reales editables por la UNCP):** objetivo general/específicos (con botón "✨ Sugerir con IA"), metas cuantitativas, metodología (con chips de opción rápida: capacitación, asistencia técnica, diagnóstico participativo, taller), cronograma (selector de fechas), recursos, presupuesto (S/), docente responsable, estudiantes participantes (nombre/DNI/código), indicadores (con "✨ Sugerir con IA").
 - **Firmas:** se completan al imprimir (no se digitalizan).
 - Botones: "Generar solicitud completa (PDF formato UNCP)" + "Guardar borrador".
+- **Barra de progreso del formato — construido:** un indicador "Formato oficial completo al **X%**" arranca en ~70% (lo que PUNKU ya pre-llenó desde el expediente) y **sube en vivo hacia 100%** conforme la UNCP completa los campos académicos (con "Sugerir con IA" o a mano). Refuerza visualmente que B4 convierte una necesidad simple en el documento formal, partiendo ya con la mayor parte hecha.
 
 > Distinción de alcance clave: PUNKU pre-llena lo que nace de la NECESIDAD (la comunidad lo sabe); la UNCP completa lo ACADÉMICO/interno (objetivos formales, presupuesto, equipo, firmas). PUNKU entrega el punto de partida, no el proyecto final ni reemplaza la formalización.
 
