@@ -36,7 +36,7 @@ const TOOL_SCHEMA = {
       urgencia: { type: "string", enum: ["normal", "alta"] },
       facultades_sugeridas: { type: "array", items: { type: "string" }, description: "1 a 3 facultades de la UNCP que pueden atender." },
       ods_sugerido: { type: "string", description: "ODS oficial pertinente (número y nombre)." },
-      resumen_formal: { type: "string", description: "Resumen en lenguaje institucional, sin datos personales (solo si coherente=true)." },
+      resumen_formal: { type: "string", description: "Resumen en lenguaje institucional, sin datos personales (solo si coherente=true). Reformula SOLO lo que el ciudadano escribió; no inventa necesidades, cifras, ubicaciones ni temas nuevos." },
       objetivo_sugerido: { type: "string", description: "Objetivo general derivado de lo que la comunidad quiere lograr." },
       meta_sugerida: { type: "string", description: "Meta cuantitativa tentativa." },
       confianza: { type: "number", description: "Confianza de la clasificación, 0 a 1." },
@@ -150,7 +150,8 @@ export async function estructurarNecesidad(input: NecesidadInput): Promise<Clasi
       `PRIMERO evalúa la COHERENCIA: ¿este input describe una necesidad comunitaria REAL y comprensible?\n` +
       `- Si la selección del árbol indica una necesidad concreta (ej. "El agua nos enferma"), es coherente aunque el relato sea pobre.\n` +
       `- Si es texto aleatorio, caracteres sin sentido, está vacío, o claramente no es una necesidad (p. ej. relato "asdf jkl qwe" con selección genérica "Otra cosa"), pon coherente=false con un motivo breve y NO inventes los demás campos.\n` +
-      `Si coherente=true, estructura la necesidad en lenguaje institucional, sin inventar datos personales, y asigna el ODS oficial pertinente al área/facultad.\n\n` +
+      `Si coherente=true, estructura la necesidad en lenguaje institucional, sin inventar datos personales, y asigna el ODS oficial pertinente al área/facultad.\n` +
+      `REGLA ANTI-INVENCIÓN (crítica): reformula ÚNICAMENTE lo que el ciudadano escribió. NO agregues necesidades, temas, cifras, ubicaciones ni causas que no estén textualmente en el input. Si el texto es escueto, produce un resumen igual de escueto — es preferible un resumen corto y fiel que uno elaborado e inventado. Nunca añadas un segundo problema o necesidad "paralela".\n\n` +
       `Área elegida: ${input.area}\n` +
       `Qué pasa: ${input.quePasa}\n` +
       `Distrito: ${input.distrito}\n` +
@@ -186,6 +187,20 @@ export async function estructurarNecesidad(input: NecesidadInput): Promise<Clasi
       }
       // Caso COHERENTE válido.
       if (validarClasificacion(o)) {
+        // FRENTE 2 — guardia de SUSTANCIA: reutiliza el MISMO juez de co-construcción
+        // (evaluarSustanciaContexto) sobre el texto real del ciudadano. Si no hay
+        // sustancia (basura que Haiku elaboró igual), se marca incompleto y NO se
+        // entrega el resumen inventado → ruteable a co-construcción, igual que el otro camino.
+        const necesidadTexto = (input.relato && input.relato.trim().length > 8) ? input.relato.trim() : input.quePasa;
+        const insuficiente = await evaluarSustanciaContexto({ resumen_formal: necesidadTexto, necesidad_texto: necesidadTexto, categoria: o.categoria as CatId });
+        if (insuficiente) {
+          return {
+            ...clasificarPorReglas(input),
+            coherente: false,
+            motivo: "El texto ingresado no describe una necesidad clara; conviene precisarla con la comunidad.",
+            clasificado_por: "ia",
+          };
+        }
         return {
           coherente: true,
           motivo: "",
@@ -401,7 +416,7 @@ const SUSTANCIA_SCHEMA = {
 /** ¿El contexto del problema es INSUFICIENTE (ininteligible/vacío/basura) y necesita
  *  reconstrucción? Evalúa la SUSTANCIA del relato/resumen, NO la plantilla. Haiku es el
  *  juez; fallback determinista (pareceBasura). Patrón IA aislada + fallback. */
-export async function evaluarSustanciaContexto(exp: Expediente): Promise<boolean> {
+export async function evaluarSustanciaContexto(exp: Pick<Expediente, "resumen_formal" | "necesidad_texto" | "categoria">): Promise<boolean> {
   const det = pareceBasura(exp.resumen_formal) || pareceBasura(exp.necesidad_texto);
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return det;
