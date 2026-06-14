@@ -46,6 +46,7 @@ function seed(d: DBShape) {
       confianza: s.confianza / 100, titulo: s.titulo,
       objetivo_sugerido: `Contribuir a que ${s.comunidad} logre: ${s.aspiracion.replace(/\.$/, "")}, con el acompañamiento de la UNCP.`,
       meta_sugerida: `${s.familias} familias beneficiadas y un plan de trabajo en 6 meses.`,
+      datos_incompletos: false,
       creado_en: s.fecha, actualizado_en: s.fecha,
     };
     d.expedientes.set(exp.codigo, exp);
@@ -88,7 +89,9 @@ export async function crearExpediente(input: NecesidadInput, ia: ClasificacionIA
     canal_origen: input.emergencia ? "emergencias" : contacto.es_facilitador ? "asistido" : "web",
     origen_registro: contacto.es_facilitador ? "facilitador" : "ciudadano", clasificado_por: ia.clasificado_por,
     confianza: ia.confianza, titulo: titulo || "Necesidad de la comunidad",
-    objetivo_sugerido: ia.objetivo_sugerido, meta_sugerida: ia.meta_sugerida, creado_en: fecha, actualizado_en: fecha,
+    objetivo_sugerido: ia.objetivo_sugerido, meta_sugerida: ia.meta_sugerida,
+    datos_incompletos: !ia.coherente,
+    creado_en: fecha, actualizado_en: fecha,
   };
   d.expedientes.set(codigo, exp);
   d.historial.set(codigo, [{ estado: "recibido", nota: "Expediente creado.", fecha }]);

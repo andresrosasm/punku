@@ -16,7 +16,7 @@ import type { TarjetaReconocimiento, ConsultaPublica } from "@/lib/types";
 
 type Screen =
   | "welcome" | "stepA" | "stepB" | "stepC" | "stepD" | "goal"
-  | "contact" | "processing" | "recognition" | "track" | "emergency" | "incoherente";
+  | "contact" | "processing" | "recognition" | "track" | "emergency";
 
 interface Contacto { nombre?: string; comunidad?: string; distrito?: string; tel?: string }
 interface Payload {
@@ -318,9 +318,7 @@ function Contact({ lang, data, set, onFinish, onBack }: any) {
 }
 
 /* ---------- A3 Procesando (momento IA: llama a la API real) ---------- */
-type ProcResult = { tarjeta?: TarjetaReconocimiento; incoherente?: boolean; mensaje?: string };
-
-function Processing({ lang, payload, onResult }: { lang: Lang; payload: Payload; onResult: (r: ProcResult) => void }) {
+function Processing({ lang, payload, onDone }: { lang: Lang; payload: Payload; onDone: (t: TarjetaReconocimiento) => void }) {
   const steps = lang === "qu"
     ? ["Caseykita ñawinchachkan…", "Área maskachkan…", "Códigoykita wakichichkan…"]
     : ["Leyendo tu caso…", "Buscando el área que te ayuda…", "Preparando tu código…"];
@@ -332,37 +330,28 @@ function Processing({ lang, payload, onResult }: { lang: Lang; payload: Payload;
     let done = false;
     const started = Date.now();
 
-    // Llamada real al servidor (con fallback a reglas adentro). Mínimo 3.3s de animación.
+    // Llamada real al servidor — SIEMPRE crea (fricción cero). Mín. 3.3s de animación.
     (async () => {
-      let result: ProcResult;
+      let tarjeta: TarjetaReconocimiento;
       try {
         const res = await fetch("/api/expedientes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        if (res.status === 422) {
-          // Input incoherente: NO se creó expediente. Se pide reescribir.
-          const d = await res.json().catch(() => ({}));
-          result = { incoherente: true, mensaje: d.mensaje || "El texto ingresado no es suficiente o no es claro. Por favor describe la necesidad real de tu comunidad." };
-        } else {
-          const tarjeta = await res.json();
-          if (!res.ok || !tarjeta?.codigo) throw new Error("bad");
-          result = { tarjeta };
-        }
+        tarjeta = await res.json();
+        if (!res.ok || !tarjeta?.codigo) throw new Error("bad");
       } catch {
         // Red caída: la demo no se cae — tarjeta local de respaldo.
-        result = {
-          tarjeta: {
-            codigo: "PUNKU-2026-000", area: payload.area, categoria: payload.catId,
-            familias: payload.familias, resumen: payload.relato || payload.quePasa,
-            urgente: payload.emergencia, clasificado_por: "reglas",
-          },
+        tarjeta = {
+          codigo: "PUNKU-2026-000", area: payload.area, categoria: payload.catId,
+          familias: payload.familias, resumen: payload.relato || payload.quePasa,
+          urgente: payload.emergencia, clasificado_por: "reglas",
         };
       }
       const elapsed = Date.now() - started;
       const wait = Math.max(0, 3300 - elapsed);
-      setTimeout(() => { if (!done) { done = true; onResult(result); } }, wait);
+      setTimeout(() => { if (!done) { done = true; onDone(tarjeta); } }, wait);
     })();
 
     return () => { done = true; clearTimeout(a); clearTimeout(b); };
@@ -562,22 +551,6 @@ function Emergency({ lang, onFinish, onBack }: { lang: Lang; onFinish: (p: Paylo
   );
 }
 
-/* ---------- Pantalla: input insuficiente / no coherente ---------- */
-function Incoherente({ mensaje, onBack }: { mensaje: string; onBack: () => void }) {
-  return (
-    <div className="cz fade-in" style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", minHeight: "70vh", justifyContent: "center", padding: "0 26px" }}>
-      <div style={{ width: 66, height: 66, borderRadius: 20, background: "var(--terra-50)", color: "var(--terra-600)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <I.alert s={32} />
-      </div>
-      <h1 style={{ fontSize: 22, marginTop: 18, color: "var(--ink)" }}>Necesitamos entenderte mejor</h1>
-      <p style={{ color: "var(--ink-70)", fontSize: 15, marginTop: 10, maxWidth: 330, lineHeight: 1.5 }}>{mensaje}</p>
-      <button className="btn btn-lg btn-green" style={{ marginTop: 26, maxWidth: 330 }} onClick={onBack}>
-        <I.arrowL s={20} /> Volver a contar mi caso
-      </button>
-    </div>
-  );
-}
-
 /* ============================================================
    Controlador de flujo
    ============================================================ */
@@ -595,7 +568,6 @@ export default function ComunidadPage() {
   const [contact, setContact] = useState<Contacto>({});
   const [payload, setPayload] = useState<Payload | null>(null);
   const [tarjeta, setTarjeta] = useState<TarjetaReconocimiento | null>(null);
-  const [incoherenteMsg, setIncoherenteMsg] = useState("");
   const setC = (k: string, v: string) => setContact((p) => ({ ...p, [k]: v }));
 
   const buildPayload = (): Payload => ({
@@ -617,17 +589,13 @@ export default function ComunidadPage() {
     case "goal": content = <StepGoal lang={lang} cat={cat} aspiracion={aspiracion} setAspiracion={setAspiracion} urgencia={aspUrg} setUrgencia={setAspUrg} onBack={() => setScreen("stepD")} onNext={() => setScreen("contact")} />; break;
     case "contact": content = <Contact lang={lang} data={contact} set={setC} onBack={() => setScreen("goal")} onFinish={() => goProcessing(buildPayload())} />; break;
     case "emergency": content = <Emergency lang={lang} onBack={() => setScreen("welcome")} onFinish={(p) => goProcessing(p)} />; break;
-    case "processing": content = payload ? <Processing lang={lang} payload={payload} onResult={(r) => {
-      if (r.incoherente) { setIncoherenteMsg(r.mensaje || ""); setScreen("incoherente"); }
-      else if (r.tarjeta) { setTarjeta(r.tarjeta); setScreen("recognition"); }
-    }} /> : null; break;
+    case "processing": content = payload ? <Processing lang={lang} payload={payload} onDone={(tj) => { setTarjeta(tj); setScreen("recognition"); }} /> : null; break;
     case "recognition": content = tarjeta ? <Recognition lang={lang} tarjeta={tarjeta} onTrack={() => setScreen("track")} /> : null; break;
-    case "incoherente": content = <Incoherente mensaje={incoherenteMsg} onBack={() => setScreen(payload?.emergencia ? "emergency" : "stepD")} />; break;
     case "track": content = <Track lang={lang} presetCode={tarjeta?.codigo && tarjeta.codigo !== "PUNKU-2026-000" ? tarjeta.codigo : ""} onBack={() => setScreen("welcome")} />; break;
   }
 
   // El paso-puerta y la barra superior no aparecen en pantallas inmersivas (emergencia/proc/recog).
-  const showBar = !["emergency", "processing", "recognition", "incoherente"].includes(screen);
+  const showBar = !["emergency", "processing", "recognition"].includes(screen);
 
   return (
     <main className="cz-shell">

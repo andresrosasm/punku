@@ -22,6 +22,28 @@ function canalLabel(c: string): string {
   if (c === "asistido") return "PUNKU (asistido)";
   return "PUNKU";
 }
+
+/* Ícono de WhatsApp (marca) */
+function WaIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={16} height={16} fill="currentColor" aria-hidden="true">
+      <path d="M.06 24l1.68-6.13A11.86 11.86 0 0 1 .16 11.9C.16 5.34 5.5.01 12.06.01a11.82 11.82 0 0 1 8.41 3.49 11.8 11.8 0 0 1 3.48 8.4c0 6.56-5.34 11.9-11.9 11.9a11.9 11.9 0 0 1-5.68-1.45L.06 24zM6.6 20.2c1.68.99 3.28 1.58 5.45 1.58 5.45 0 9.9-4.43 9.9-9.88 0-5.46-4.43-9.9-9.89-9.9-5.46 0-9.89 4.44-9.89 9.9 0 2.28.67 3.99 1.79 5.78l-.99 3.62 3.62-1.1zM17.9 14.7c-.07-.12-.27-.2-.57-.35-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.64.07-.3-.15-1.25-.46-2.39-1.47-.88-.79-1.48-1.76-1.65-2.06-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51l-.57-.01c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48 0 1.46 1.07 2.88 1.22 3.08.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.62.71.23 1.36.2 1.87.12.57-.08 1.76-.72 2-1.41.25-.69.25-1.28.17-1.41z" />
+    </svg>
+  );
+}
+
+/* Enlace wa.me con mensaje pre-redactado (Perú: prefijo 51 si es móvil de 9 dígitos). */
+function waLink(exp: Expediente, contacto: { nombre_representante: string; telefono: string }): string {
+  const tel = (contacto.telefono || "").replace(/\D/g, "");
+  const numero = tel.length === 9 && tel.startsWith("9") ? "51" + tel : tel;
+  const nombre = (contacto.nombre_representante || "").replace(/\s*\(.*\)\s*/, "").trim() || "estimado(a)";
+  const tema = exp.titulo || (catOf(exp.categoria)?.es || "su necesidad");
+  const msg =
+    `Hola ${nombre}, le escribo de la UNCP sobre su solicitud ${exp.codigo} de ${exp.comunidad}. ` +
+    `Para avanzar con su proyecto de proyección social necesitamos completar algunos datos. ` +
+    `¿Podría ayudarnos con más información sobre ${tema}?`;
+  return `https://wa.me/${numero}?text=${encodeURIComponent(msg)}`;
+}
 function EstadoPill({ id, lang }: { id: EstadoId; lang: Lang }) {
   const s = ESTADO_STYLE[id];
   const e = ESTADOS.find((x) => x.id === id)!;
@@ -291,11 +313,19 @@ function Detalle({ lang, exp, onBack, onArmar, onEstado }: {
             <UrgenciaTag u={exp.urgencia} />
             <EstadoPill id={estado} lang={lang} />
             <span className="canal-tag">{canalLabel(exp.canal_origen)}</span>
+            {exp.datos_incompletos && <span className="incompleto-tag"><I.alert s={12} /> Datos incompletos</span>}
           </div>
           <h2 style={{ fontSize: 20, marginTop: 8, color: "var(--slate-900)", lineHeight: 1.2 }}>{exp.titulo}</h2>
           <p style={{ color: "var(--slate-500)", fontSize: 13.5, marginTop: 4 }}>{exp.comunidad} · {exp.distrito} · {exp.creado_en}</p>
         </div>
       </div>
+
+      {exp.datos_incompletos && (
+        <div className="incompleto-banner">
+          <I.alert s={18} />
+          <span>La clasificación detectó <strong>datos incompletos o poco claros</strong>. El expediente se registró igual (fricción cero para el ciudadano). Conviene <strong>contactar al ciudadano</strong> para completar la información antes de formalizar — usa "Mostrar" → "Contactar por WhatsApp".</span>
+        </div>
+      )}
 
       <div className="det-grid">
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -329,9 +359,12 @@ function Detalle({ lang, exp, onBack, onArmar, onEstado }: {
           <div className="card contact-card">
             <div className="card-eyebrow"><I.phone s={14} /> Datos de contacto</div>
             {contacto ? (
-              <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
                 <div style={{ fontSize: 14, color: "var(--slate-700)" }}><strong>Representante:</strong> {contacto.nombre_representante}</div>
                 <div style={{ fontSize: 14, color: "var(--slate-700)" }}><strong>Teléfono:</strong> {contacto.telefono}</div>
+                <a className="wa-btn" href={waLink(exp, contacto)} target="_blank" rel="noopener noreferrer">
+                  <WaIcon /> Contactar por WhatsApp
+                </a>
               </div>
             ) : (
               <div style={{ marginTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
@@ -394,11 +427,11 @@ function Detalle({ lang, exp, onBack, onArmar, onEstado }: {
 }
 
 /* ---------- B4 Completar solicitud (formato UNCP) ---------- */
-function EdField({ label, children, ai, onAi, loading }: any) {
+function EdField({ label, children, ai, onAi, loading, pending }: any) {
   return (
-    <div className="ed-field">
+    <div className={"ed-field" + (pending ? " pending" : "")}>
       <div className="ed-top">
-        <span className="ed-label">{label}</span>
+        <span className="ed-label">{label}{pending && <span className="pend-pill">Pendiente</span>}</span>
         {ai && (
           <button className="ai-btn" onClick={onAi} disabled={loading}>
             {loading ? <><span className="ai-spin" /> Generando…</> : <><I.sparkle s={13} /> Sugerir con IA</>}
@@ -429,13 +462,22 @@ function Solicitud({ exp, onBack }: { exp: Expediente; onBack: () => void }) {
   const wc = exp.titulo.trim().split(/\s+/).length;
 
   // Progreso del formato oficial: el bloque pre-llenado por PUNKU es la base (~70%);
-  // los campos académicos editables suben el resto hasta 100%.
-  const editableChecks = [
-    !!f.objetivoGen.trim(), !!f.objetivosEsp.trim(), !!f.metas.trim(), !!f.metodologia.trim(),
-    !!(f.fechaIni && f.fechaFin), !!f.recursos.trim(), !!String(f.presupuesto).trim(),
-    !!f.docente.trim(), f.estudiantes.some((e) => e.nombre.trim()), !!f.evaluacion.trim(),
+  // los campos académicos editables suben el resto hasta 100%. Cada campo lleva su
+  // etiqueta para resaltar los pendientes y resumir cuáles faltan.
+  const CAMPOS_B4 = [
+    { key: "objetivoGen", label: "Objetivo general", filled: !!f.objetivoGen.trim() },
+    { key: "objetivosEsp", label: "Objetivos específicos", filled: !!f.objetivosEsp.trim() },
+    { key: "metas", label: "Metas", filled: !!f.metas.trim() },
+    { key: "metodologia", label: "Metodología", filled: !!f.metodologia.trim() },
+    { key: "cronograma", label: "Cronograma", filled: !!(f.fechaIni && f.fechaFin) },
+    { key: "recursos", label: "Recursos", filled: !!f.recursos.trim() },
+    { key: "presupuesto", label: "Presupuesto", filled: !!String(f.presupuesto).trim() },
+    { key: "docente", label: "Docente responsable", filled: !!f.docente.trim() },
+    { key: "estudiantes", label: "Estudiantes", filled: f.estudiantes.some((e) => e.nombre.trim()) },
+    { key: "evaluacion", label: "Evaluación y monitoreo", filled: !!f.evaluacion.trim() },
   ];
-  const pct = Math.round(70 + (editableChecks.filter(Boolean).length / editableChecks.length) * 30);
+  const pendientes = CAMPOS_B4.filter((x) => !x.filled);
+  const pct = Math.round(70 + ((CAMPOS_B4.length - pendientes.length) / CAMPOS_B4.length) * 30);
 
   // "Sugerir con IA": llama al motor real (/api/sugerir). Si la IA no está
   // disponible cae a plantilla; si el expediente no es coherente, avisa y no rellena.
@@ -496,12 +538,26 @@ function Solicitud({ exp, onBack }: { exp: Expediente; onBack: () => void }) {
         <span><i className="dot a" /> Completa para formalizar — lo escribe la UNCP</span>
       </div>
 
+      {exp.datos_incompletos && (
+        <div className="incompleto-banner" style={{ marginBottom: 14 }}>
+          <I.alert s={18} />
+          <span>Este expediente entró con <strong>datos incompletos o poco claros</strong>. Revisa lo pre-llenado y, si hace falta, contacta al ciudadano por WhatsApp (en el detalle) antes de formalizar.</span>
+        </div>
+      )}
+
       <div className="b4-progress">
         <div className="b4-progress-top">
           <span>Formato oficial completo al <strong>{pct}%</strong></span>
-          <span className="b4-progress-hint">{pct >= 100 ? "Listo para generar el PDF" : "Completa los campos de la derecha para llegar al 100%"}</span>
+          <span className="b4-progress-hint">{pct >= 100 ? "Listo para generar el PDF" : "Completa los campos resaltados para llegar al 100%"}</span>
         </div>
         <div className="b4-progress-track"><div className="b4-progress-fill" style={{ width: pct + "%" }} /></div>
+        {pendientes.length > 0 ? (
+          <div className="b4-pending-summary">
+            <I.alert s={14} /> Faltan <strong>{pendientes.length}</strong> {pendientes.length === 1 ? "campo" : "campos"} para llegar al 100%: {pendientes.map((p) => p.label).join(", ")}.
+          </div>
+        ) : (
+          <div className="b4-pending-summary done"><I.check s={14} /> Formato completo. Listo para generar el PDF.</div>
+        )}
       </div>
 
       <div className="b4-grid">
@@ -525,36 +581,36 @@ function Solicitud({ exp, onBack }: { exp: Expediente; onBack: () => void }) {
 
         <div className="b4-block fill">
           <div className="b4-bhead a"><I.clock s={15} /> Completa para formalizar<span>la UNCP escribe aquí</span></div>
-          <EdField label="Objetivo general" ai loading={sugiriendo === "objetivoGen"} onAi={() => sugerir("objetivoGen")}>
+          <EdField label="Objetivo general" pending={!f.objetivoGen.trim()} ai loading={sugiriendo === "objetivoGen"} onAi={() => sugerir("objetivoGen")}>
             <textarea className="ed-ta" rows={3} value={f.objetivoGen} onChange={(e) => set("objetivoGen", e.target.value)} placeholder="¿Cuál es el propósito principal del proyecto?" />
           </EdField>
-          <EdField label="Objetivos específicos" ai loading={sugiriendo === "objetivosEsp"} onAi={() => sugerir("objetivosEsp")}>
+          <EdField label="Objetivos específicos" pending={!f.objetivosEsp.trim()} ai loading={sugiriendo === "objetivosEsp"} onAi={() => sugerir("objetivosEsp")}>
             <textarea className="ed-ta" rows={3} value={f.objetivosEsp} onChange={(e) => set("objetivosEsp", e.target.value)} placeholder="Metas concretas a alcanzar (una por línea)." />
           </EdField>
-          <EdField label="Metas (cuantitativas)" ai loading={sugiriendo === "metas"} onAi={() => sugerir("metas")}>
+          <EdField label="Metas (cuantitativas)" pending={!f.metas.trim()} ai loading={sugiriendo === "metas"} onAi={() => sugerir("metas")}>
             <textarea className="ed-ta" rows={2} value={f.metas} onChange={(e) => set("metas", e.target.value)} placeholder="Ej.: 1 diagnóstico; 120 familias capacitadas; 1 plan comunal en 6 meses." />
           </EdField>
-          <EdField label="Metodología de trabajo">
+          <EdField label="Metodología de trabajo" pending={!f.metodologia.trim()}>
             <textarea className="ed-ta" rows={2} value={f.metodologia} onChange={(e) => set("metodologia", e.target.value)} placeholder="Métodos y técnicas, diagnóstico, fases y participación de la comunidad." />
           </EdField>
-          <EdField label="Cronograma / periodo de ejecución">
+          <EdField label="Cronograma / periodo de ejecución" pending={!(f.fechaIni && f.fechaFin)}>
             <div style={{ display: "flex", gap: 10 }}>
               <label className="date-lbl">Inicio<input type="date" className="ed-input" value={f.fechaIni} onChange={(e) => set("fechaIni", e.target.value)} /></label>
               <label className="date-lbl">Culminación<input type="date" className="ed-input" value={f.fechaFin} onChange={(e) => set("fechaFin", e.target.value)} /></label>
             </div>
           </EdField>
-          <EdField label="Recursos (materiales, humanos, financieros)">
+          <EdField label="Recursos (materiales, humanos, financieros)" pending={!f.recursos.trim()}>
             <textarea className="ed-ta" rows={2} value={f.recursos} onChange={(e) => set("recursos", e.target.value)} placeholder="Qué se necesita para ejecutar el proyecto." />
           </EdField>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <EdField label="Presupuesto estimado (S/)">
+            <EdField label="Presupuesto estimado (S/)" pending={!String(f.presupuesto).trim()}>
               <input type="number" className="ed-input" value={f.presupuesto} onChange={(e) => set("presupuesto", e.target.value)} placeholder="0.00" />
             </EdField>
-            <EdField label="Docente responsable / asesor">
+            <EdField label="Docente responsable / asesor" pending={!f.docente.trim()}>
               <input className="ed-input" value={f.docente} onChange={(e) => set("docente", e.target.value)} placeholder="Apellidos y nombres" />
             </EdField>
           </div>
-          <EdField label="Estudiantes participantes">
+          <EdField label="Estudiantes participantes" pending={!f.estudiantes.some((e) => e.nombre.trim())}>
             <div className="stu-list">
               <div className="stu-row head"><span>Apellidos y nombres</span><span>DNI</span><span>Código</span><span /></div>
               {f.estudiantes.map((e, i) => (
@@ -568,7 +624,7 @@ function Solicitud({ exp, onBack }: { exp: Expediente; onBack: () => void }) {
               <button className="stu-add" onClick={addStu}>+ Agregar estudiante</button>
             </div>
           </EdField>
-          <EdField label="Evaluación y monitoreo (indicadores)" ai loading={sugiriendo === "evaluacion"} onAi={() => sugerir("evaluacion")}>
+          <EdField label="Evaluación y monitoreo (indicadores)" pending={!f.evaluacion.trim()} ai loading={sugiriendo === "evaluacion"} onAi={() => sugerir("evaluacion")}>
             <textarea className="ed-ta" rows={3} value={f.evaluacion} onChange={(e) => set("evaluacion", e.target.value)} placeholder="Indicadores de éxito y herramientas de seguimiento." />
           </EdField>
         </div>

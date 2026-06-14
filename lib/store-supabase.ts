@@ -48,6 +48,7 @@ function toExp(r: any): Expediente {
     origen_registro: r.origen_registro ?? "ciudadano", clasificado_por: r.clasificado_por ?? "ia",
     confianza: typeof r.confianza === "number" ? r.confianza : 0, titulo: r.titulo ?? "",
     objetivo_sugerido: r.objetivo_sugerido ?? "", meta_sugerida: r.meta_sugerida ?? "",
+    datos_incompletos: !!r.datos_incompletos,
     creado_en: fmtFecha(r.creado_en), actualizado_en: fmtFecha(r.actualizado_en),
   };
 }
@@ -67,6 +68,7 @@ function seedRow(s: ExpedienteSeed) {
     confianza: s.confianza / 100, titulo: s.titulo,
     objetivo_sugerido: `Contribuir a que ${s.comunidad} logre: ${s.aspiracion.replace(/\.$/, "")}, con el acompañamiento de la UNCP.`,
     meta_sugerida: `${s.familias} familias beneficiadas y un plan de trabajo en 6 meses.`,
+    datos_incompletos: false,
     creado_en: iso, actualizado_en: iso,
   };
 }
@@ -134,6 +136,7 @@ export async function crearExpediente(input: NecesidadInput, ia: ClasificacionIA
     canal_origen: input.emergencia ? "emergencias" : contacto.es_facilitador ? "asistido" : "web",
     origen_registro: contacto.es_facilitador ? "facilitador" : "ciudadano", clasificado_por: ia.clasificado_por,
     confianza: ia.confianza, titulo, objetivo_sugerido: ia.objetivo_sugerido, meta_sugerida: ia.meta_sugerida,
+    datos_incompletos: !ia.coherente,
   };
 
   let inserted: any = null;

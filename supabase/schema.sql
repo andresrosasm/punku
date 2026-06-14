@@ -36,6 +36,7 @@ create table if not exists public.expedientes (
   titulo              text,
   objetivo_sugerido   text,
   meta_sugerida       text,
+  datos_incompletos   boolean not null default false,       -- aviso interno (panel)
   creado_en           timestamptz not null default now(),
   actualizado_en      timestamptz not null default now()
 );

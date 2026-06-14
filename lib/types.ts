@@ -76,6 +76,9 @@ export interface Expediente {
   titulo: string;
   objetivo_sugerido: string;
   meta_sugerida: string;
+  /** Aviso interno (solo panel): la IA detectó coherencia baja / datos pobres.
+   *  NO bloquea nada — sugiere al coordinador contactar al ciudadano. */
+  datos_incompletos: boolean;
   creado_en: string;
   actualizado_en: string;
 }
