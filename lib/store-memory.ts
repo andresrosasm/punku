@@ -12,11 +12,13 @@ import type {
   Expediente, EstadoHistorial, ConsultaPublica, ContactoInput,
   NecesidadInput, ClasificacionIA, TarjetaReconocimiento,
 } from "./types";
+import type { B4Form } from "./uncp-doc";
 
 interface DBShape {
   expedientes: Map<string, Expediente>;
   historial: Map<string, EstadoHistorial[]>;
   contactos: Map<string, ContactoInput>; // SENSIBLE — solo server
+  borradores: Map<string, B4Form>;       // borrador de B4 por código
   correlativo: number;
   seeded: boolean;
 }
@@ -25,7 +27,7 @@ const g = globalThis as unknown as { __PUNKU_DB__?: DBShape };
 
 function db(): DBShape {
   if (!g.__PUNKU_DB__) {
-    g.__PUNKU_DB__ = { expedientes: new Map(), historial: new Map(), contactos: new Map(), correlativo: 0, seeded: false };
+    g.__PUNKU_DB__ = { expedientes: new Map(), historial: new Map(), contactos: new Map(), borradores: new Map(), correlativo: 0, seeded: false };
   }
   if (!g.__PUNKU_DB__.seeded) seed(g.__PUNKU_DB__);
   return g.__PUNKU_DB__;
@@ -133,4 +135,13 @@ export async function cambiarEstado(codigo: string, estado: EstadoId, nota: stri
 export async function revelarContacto(codigo: string): Promise<ContactoInput | null> {
   const d = db();
   return d.contactos.get(codigo.trim().toUpperCase()) || null;
+}
+
+/* ---------- Borrador de B4 (en memoria) ---------- */
+export async function cargarBorrador(codigo: string): Promise<B4Form | null> {
+  return db().borradores.get(codigo.trim().toUpperCase()) || null;
+}
+export async function guardarBorrador(codigo: string, form: B4Form): Promise<boolean> {
+  db().borradores.set(codigo.trim().toUpperCase(), form);
+  return true;
 }

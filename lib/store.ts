@@ -14,6 +14,7 @@ import type {
   NecesidadInput, ClasificacionIA, TarjetaReconocimiento,
 } from "./types";
 import type { EstadoId } from "./punku-data";
+import type { B4Form } from "./uncp-doc";
 
 function impl() {
   return hasSupabase() ? sb : mem;
@@ -36,4 +37,10 @@ export function cambiarEstado(codigo: string, estado: EstadoId, nota: string): P
 }
 export function revelarContacto(codigo: string): Promise<ContactoInput | null> {
   return impl().revelarContacto(codigo);
+}
+export function cargarBorrador(codigo: string): Promise<B4Form | null> {
+  return impl().cargarBorrador(codigo);
+}
+export function guardarBorrador(codigo: string, form: B4Form): Promise<boolean> {
+  return impl().guardarBorrador(codigo, form);
 }

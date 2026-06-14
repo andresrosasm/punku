@@ -9,6 +9,7 @@
    ============================================================ */
 import { supabaseAdmin } from "./supabase";
 import { EXPEDIENTES, ESTADOS, ODS_MAP, type EstadoId, type CatId, type ExpedienteSeed } from "./punku-data";
+import type { B4Form } from "./uncp-doc";
 import type {
   Expediente, EstadoHistorial, ConsultaPublica, ContactoInput,
   NecesidadInput, ClasificacionIA, TarjetaReconocimiento,
@@ -208,4 +209,52 @@ export async function revelarContacto(codigo: string): Promise<ContactoInput | n
   const { data: c } = await sb.from("contactos").select("nombre_representante, telefono, es_facilitador").eq("expediente_id", exp.id).maybeSingle();
   if (!c) return null;
   return { nombre_representante: c.nombre_representante, telefono: c.telefono, comunidad: exp.comunidad, es_facilitador: c.es_facilitador };
+}
+
+/* ---------- Borrador de B4 (tabla borradores_b4, 1:1 con expedientes) ---------- */
+function rowToForm(r: any): B4Form {
+  return {
+    objetivoGen: r.objetivo_general ?? "",
+    objetivosEsp: r.objetivos_especificos ?? "",
+    metas: r.metas ?? "",
+    metodologia: r.metodologia ?? "",
+    fechaIni: r.fecha_ini ?? "2026-05-11",
+    fechaFin: r.fecha_fin ?? "2026-12-28",
+    recursos: r.recursos ?? "",
+    presupuesto: r.presupuesto ?? "",
+    docente: r.docente_asesor ?? "",
+    evaluacion: r.evaluacion ?? "",
+    estudiantes: Array.isArray(r.estudiantes) && r.estudiantes.length ? r.estudiantes : [{ nombre: "", dni: "", codigo: "" }],
+  };
+}
+
+export async function cargarBorrador(codigo: string): Promise<B4Form | null> {
+  const sb = supabaseAdmin();
+  const { data: exp } = await sb.from("expedientes").select("id").eq("codigo", codigo.trim().toUpperCase()).maybeSingle();
+  if (!exp) return null;
+  const { data: b } = await sb.from("borradores_b4").select("*").eq("expediente_id", exp.id).maybeSingle();
+  return b ? rowToForm(b) : null;
+}
+
+export async function guardarBorrador(codigo: string, form: B4Form): Promise<boolean> {
+  const sb = supabaseAdmin();
+  const { data: exp } = await sb.from("expedientes").select("id").eq("codigo", codigo.trim().toUpperCase()).maybeSingle();
+  if (!exp) return false;
+  const row = {
+    expediente_id: exp.id,
+    objetivo_general: form.objetivoGen || null,
+    objetivos_especificos: form.objetivosEsp || null,
+    metas: form.metas || null,
+    metodologia: form.metodologia || null,
+    fecha_ini: form.fechaIni || null,
+    fecha_fin: form.fechaFin || null,
+    recursos: form.recursos || null,
+    presupuesto: form.presupuesto || null,
+    docente_asesor: form.docente || null,
+    evaluacion: form.evaluacion || null,
+    estudiantes: form.estudiantes || [],
+    actualizado_en: new Date().toISOString(),
+  };
+  const { error } = await sb.from("borradores_b4").upsert(row, { onConflict: "expediente_id" });
+  return !error;
 }

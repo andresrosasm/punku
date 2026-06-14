@@ -74,6 +74,27 @@ create table if not exists public.ods_facultad (
   es_transversal boolean default false
 );
 
+-- ---------- Borrador del formato UNCP de B4 (1:1 con expedientes) ----------
+-- Lo que la UNCP completa en B4 (objetivo, específicos, metas, etc.). Tabla aparte
+-- para no tocar `expedientes`. Ver supabase/migration-borradores-b4.sql.
+create table if not exists public.borradores_b4 (
+  id                     uuid primary key default gen_random_uuid(),
+  expediente_id          uuid not null unique references public.expedientes(id) on delete cascade,
+  objetivo_general       text,
+  objetivos_especificos  text,
+  metas                  text,
+  metodologia            text,
+  fecha_ini              date,
+  fecha_fin              date,
+  recursos               text,
+  presupuesto            text,
+  docente_asesor         text,
+  evaluacion             text,
+  estudiantes            jsonb not null default '[]'::jsonb,
+  actualizado_en         timestamptz not null default now()
+);
+create index if not exists idx_borradores_b4_expediente on public.borradores_b4(expediente_id);
+
 -- ============================================================
 -- Row Level Security (spec 06, regla de oro #3)
 -- ============================================================
@@ -82,6 +103,7 @@ alter table public.contactos        enable row level security;
 alter table public.estados_historial enable row level security;
 alter table public.facultades       enable row level security;
 alter table public.ods_facultad     enable row level security;
+alter table public.borradores_b4    enable row level security; -- interna: solo service_role
 
 -- Lectura pública SOLO de campos no sensibles del expediente (consulta por código, A5).
 -- Nota: el frontend público usa la anon key; toda escritura pasa por API routes con

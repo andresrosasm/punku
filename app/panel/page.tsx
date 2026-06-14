@@ -5,7 +5,7 @@
    El cambio de estado aquí se refleja al instante en la consulta ciudadana (A5).
    ============================================================ */
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { PunkuLogo } from "@/components/MountainDoor";
 import { CatGlyph, I } from "@/components/icons";
@@ -199,22 +199,29 @@ function exportExpedienteCsv(exp: Expediente) {
   URL.revokeObjectURL(url);
 }
 
-// PDF del expediente en formato oficial UNCP (pre-llenado; campos académicos vacíos).
-function generarPdfExpediente(exp: Expediente) {
-  const modal = modalidadDe(exp);
+// Formulario B4 vacío inicial (las fechas vienen pre-cargadas, como en el prototipo).
+function defaultB4Form(): B4Form {
+  return { objetivoGen: "", objetivosEsp: "", metas: "", metodologia: "", fechaIni: "2026-05-11", fechaFin: "2026-12-28", recursos: "", presupuesto: "", docente: "", evaluacion: "", estudiantes: [{ nombre: "", dni: "", codigo: "" }] };
+}
+
+// Contexto del documento UNCP a partir del expediente + el formulario que llenó la UNCP.
+function buildB4Ctx(exp: Expediente, form: B4Form) {
   const ods = ODS_MAP[exp.categoria] || "ODS 17 · Alianzas";
-  const form: B4Form = { objetivoGen: "", objetivosEsp: "", metas: "", metodologia: "", fechaIni: "2026-05-11", fechaFin: "2026-12-28", recursos: "", presupuesto: "", docente: "", evaluacion: "", estudiantes: [{ nombre: "", dni: "", codigo: "" }] };
-  const ctx = { area: AREA_MAP[exp.categoria] || "Intervención Tecnológica", modal, ods, justificacion: justificacionIA(exp, ods), fechaIni: form.fechaIni, fechaFin: form.fechaFin, form };
+  return { area: AREA_MAP[exp.categoria] || "Intervención Tecnológica", modal: modalidadDe(exp), ods, justificacion: justificacionIA(exp, ods), fechaIni: form.fechaIni, fechaFin: form.fechaFin, form };
+}
+
+// PDF en formato oficial UNCP — usa el FORMULARIO LLENO (compartido por B4 y el correo).
+function generarPdfExpediente(exp: Expediente, form: B4Form) {
   try {
     const w = window.open("", "_blank", "width=900,height=1100");
     if (!w) return;
-    w.document.write(uncpPrintHtml(exp, ctx)); w.document.close(); w.focus();
+    w.document.write(uncpPrintHtml(exp, buildB4Ctx(exp, form))); w.document.close(); w.focus();
     setTimeout(() => { try { w.print(); } catch {} }, 500);
   } catch {}
 }
 
 /* ---------- Modal: Enviar a la facultad (simulación de correo, frontend puro) ---------- */
-function EnviarFacultadModal({ exp, onClose, onEnviado }: { exp: Expediente; onClose: () => void; onEnviado: () => void }) {
+function EnviarFacultadModal({ exp, b4Form, onClose, onEnviado }: { exp: Expediente; b4Form: B4Form; onClose: () => void; onEnviado: () => void }) {
   const facultad = exp.facultades_sugeridas.find((f) => !/otra entidad/i.test(f)) || "la facultad correspondiente";
   const asunto = `Solicitud de proyección social — ${exp.comunidad} — deriva a ${facultad}`;
   const cuerpo =
@@ -248,7 +255,7 @@ function EnviarFacultadModal({ exp, onClose, onEnviado }: { exp: Expediente; onC
           </div>
           <div style={{ fontSize: 11, fontWeight: 700, color: "var(--slate-400)", textTransform: "uppercase", letterSpacing: ".04em", marginTop: 14, marginBottom: 8 }}>Adjuntos</div>
           <div className="mail-attachments">
-            <button className="attach-chip" onClick={() => generarPdfExpediente(exp)} title="Descargar / imprimir el PDF en formato UNCP"><span className="att-ico pdf">PDF</span> solicitud-{exp.codigo}.pdf</button>
+            <button className="attach-chip" onClick={() => generarPdfExpediente(exp, b4Form)} title="Descargar / imprimir el PDF en formato UNCP"><span className="att-ico pdf">PDF</span> solicitud-{exp.codigo}.pdf</button>
             <button className="attach-chip" onClick={() => exportExpedienteCsv(exp)} title="Descargar el CSV del expediente"><span className="att-ico csv">CSV</span> expediente-{exp.codigo}.csv</button>
           </div>
           <div className="mail-note">
@@ -267,8 +274,8 @@ function EnviarFacultadModal({ exp, onClose, onEnviado }: { exp: Expediente; onC
 
 /* ---------- B2 Detalle ---------- */
 function KV({ label, value }: any) { return <div><div className="kv-label">{label}</div><div className="kv-val">{value}</div></div>; }
-function Detalle({ lang, exp, onBack, onArmar, onEstado }: {
-  lang: Lang; exp: Expediente; onBack: () => void; onArmar: () => void;
+function Detalle({ lang, exp, b4Form, onBack, onArmar, onEstado }: {
+  lang: Lang; exp: Expediente; b4Form: B4Form; onBack: () => void; onArmar: () => void;
   onEstado: (codigo: string, estado: EstadoId, nota: string) => Promise<void>;
 }) {
   const [estado, setEstado] = useState<EstadoId>(exp.estado);
@@ -421,7 +428,7 @@ function Detalle({ lang, exp, onBack, onArmar, onEstado }: {
       </div>
 
       {toast && <div className="crm-toast fade-in"><I.check s={16} /> {toast}</div>}
-      {showCorreo && <EnviarFacultadModal exp={exp} onClose={() => setShowCorreo(false)} onEnviado={() => flash("Correo preparado para la facultad ✓ (simulación)")} />}
+      {showCorreo && <EnviarFacultadModal exp={exp} b4Form={b4Form} onClose={() => setShowCorreo(false)} onEnviado={() => flash("Correo preparado para la facultad ✓ (simulación)")} />}
     </div>
   );
 }
@@ -442,18 +449,20 @@ function EdField({ label, children, ai, onAi, loading, pending }: any) {
     </div>
   );
 }
-function Solicitud({ exp, onBack }: { exp: Expediente; onBack: () => void }) {
+function Solicitud({ exp, form, onChangeForm, onBack }: {
+  exp: Expediente; form: B4Form; onChangeForm: (updater: (p: B4Form) => B4Form) => void; onBack: () => void;
+}) {
   const c = catOf(exp.categoria)!;
   const modal = modalidadDe(exp);
   const ods = ODS_MAP[exp.categoria] || "ODS 17 · Alianzas";
-  const [area, setArea] = useState(AREA_MAP[exp.categoria] || "Intervención Tecnológica");
+  const area = AREA_MAP[exp.categoria] || "Intervención Tecnológica";
   const justif = justificacionIA(exp, ods);
-  const [f, setF] = useState<B4Form>({
-    objetivoGen: "", objetivosEsp: "", metas: "", metodologia: "",
-    fechaIni: "2026-05-11", fechaFin: "2026-12-28", recursos: "", presupuesto: "",
-    docente: "", evaluacion: "", estudiantes: [{ nombre: "", dni: "", codigo: "" }],
-  });
+  // El formulario lo gestiona el panel (hidratado desde la BD); aquí solo se edita.
+  // setF -> onChangeForm. "Guardar borrador" lo persiste en la BD (tabla borradores_b4).
+  const f = form;
+  const setF = onChangeForm;
   const [toast, setToast] = useState("");
+  const [guardando, setGuardando] = useState(false);
   const set = (k: keyof B4Form, v: any) => setF((p) => ({ ...p, [k]: v }));
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(""), 2200); };
   const setStu = (i: number, k: string, v: string) => setF((p) => { const e = [...p.estudiantes]; e[i] = { ...e[i], [k]: v }; return { ...p, estudiantes: e }; });
@@ -499,13 +508,26 @@ function Solicitud({ exp, onBack }: { exp: Expediente; onBack: () => void }) {
   };
 
   const generar = () => {
-    const ctx = { area, modal, ods, justificacion: justif, fechaIni: f.fechaIni, fechaFin: f.fechaFin, form: f };
     try {
       const w = window.open("", "_blank", "width=900,height=1100");
       if (!w) { flash("Habilita pop-ups para generar el PDF."); return; }
-      w.document.write(uncpPrintHtml(exp, ctx)); w.document.close(); w.focus();
+      // Mismo contexto que el PDF del correo: usa el formulario lleno y compartido.
+      w.document.write(uncpPrintHtml(exp, buildB4Ctx(exp, f))); w.document.close(); w.focus();
       setTimeout(() => { try { w.print(); } catch {} }, 500);
     } catch { flash("No se pudo abrir el PDF."); }
+  };
+
+  // Guarda el borrador en la BD (upsert por expediente). Persiste tras recargar.
+  const guardar = async () => {
+    if (guardando) return;
+    setGuardando(true);
+    try {
+      const res = await fetch(`/api/expedientes/${exp.codigo}/borrador`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f),
+      });
+      flash(res.ok ? "Borrador guardado." : "No se pudo guardar el borrador.");
+    } catch { flash("No se pudo guardar el borrador."); }
+    setGuardando(false);
   };
 
   const RO = ({ label, children, full }: any) => (
@@ -545,9 +567,13 @@ function Solicitud({ exp, onBack }: { exp: Expediente; onBack: () => void }) {
         </div>
       )}
 
-      <div className="b4-progress">
+      <div className={"b4-progress" + (exp.datos_incompletos ? " unreliable" : "")}>
         <div className="b4-progress-top">
-          <span>Formato oficial completo al <strong>{pct}%</strong></span>
+          {exp.datos_incompletos ? (
+            <span>Pre-llenado a partir de <strong>datos poco confiables</strong> — revisa y corrige antes de formalizar. <strong>{pct}%</strong></span>
+          ) : (
+            <span>Formato oficial completo al <strong>{pct}%</strong></span>
+          )}
           <span className="b4-progress-hint">{pct >= 100 ? "Listo para generar el PDF" : "Completa los campos resaltados para llegar al 100%"}</span>
         </div>
         <div className="b4-progress-track"><div className="b4-progress-fill" style={{ width: pct + "%" }} /></div>
@@ -633,7 +659,7 @@ function Solicitud({ exp, onBack }: { exp: Expediente; onBack: () => void }) {
       <div className="b4-foot">
         <div className="firma-note"><I.shield s={15} /> Las firmas (Dir. de Proyección Social, Decano y representante comunal) se completan al imprimir el documento — no se digitalizan.</div>
         <div className="b4-actions">
-          <button className="draft-btn ghost" onClick={() => flash("Borrador guardado.")}><I.copy s={15} /> Guardar borrador</button>
+          <button className="draft-btn ghost" onClick={guardar} disabled={guardando}><I.copy s={15} /> {guardando ? "Guardando…" : "Guardar borrador"}</button>
           <button className="b4-generate" onClick={generar}><I.arrowUR s={16} /> Generar solicitud completa (PDF formato UNCP)</button>
         </div>
       </div>
@@ -743,6 +769,34 @@ export default function PanelPage() {
   const [view, setView] = useState("bandeja");
   const [rows, setRows] = useState<Expediente[]>([]);
   const [sel, setSel] = useState<Expediente | null>(null);
+  // Formularios B4 por código. La FUENTE DE VERDAD es la BD (tabla borradores_b4):
+  // al abrir un expediente se HIDRATA desde la BD; este estado de sesión es la capa
+  // de UX entre vistas (no se pierde al navegar). Lo comparten B4 (editar), el PDF y
+  // el correo (adjunto), así todos reflejan lo guardado aunque se recargue el navegador.
+  const [b4Forms, setB4Forms] = useState<Record<string, B4Form>>({});
+  const b4Hidratado = useRef<Set<string>>(new Set());
+  const b4FormFor = (codigo: string) => b4Forms[codigo] ?? defaultB4Form();
+  const onChangeB4Form = (codigo: string, updater: (p: B4Form) => B4Form) =>
+    setB4Forms((prev) => ({ ...prev, [codigo]: updater(prev[codigo] ?? defaultB4Form()) }));
+
+  // Hidratar el borrador desde la BD al abrir un expediente (una vez por sesión y
+  // código; las ediciones de sesión no se sobre-escriben). En recarga del navegador
+  // el set se reinicia -> vuelve a leer de la BD lo último guardado.
+  useEffect(() => {
+    if (auth !== true || !sel) return;
+    const codigo = sel.codigo;
+    if (b4Hidratado.current.has(codigo)) return;
+    b4Hidratado.current.add(codigo);
+    (async () => {
+      try {
+        const res = await fetch(`/api/expedientes/${codigo}/borrador`, { cache: "no-store" });
+        if (res.ok) {
+          const d = await res.json();
+          if (d.borrador) setB4Forms((prev) => ({ ...prev, [codigo]: d.borrador }));
+        }
+      } catch {}
+    })();
+  }, [sel, auth]);
 
   const cargar = async () => {
     try {
@@ -783,8 +837,8 @@ export default function PanelPage() {
     <div className="crm-shell">
       <CrmRail view={view} setView={(v) => setView(v)} onLogout={onLogout} />
       {view === "bandeja" && <Bandeja lang={lang} rows={rows} onOpen={(e) => { setSel(e); setView("detalle"); }} />}
-      {view === "detalle" && sel && <Detalle lang={lang} exp={sel} onBack={() => { setView("bandeja"); cargar(); }} onArmar={() => setView("solicitud")} onEstado={onEstado} />}
-      {view === "solicitud" && sel && <Solicitud exp={sel} onBack={() => setView("detalle")} />}
+      {view === "detalle" && sel && <Detalle lang={lang} exp={sel} b4Form={b4FormFor(sel.codigo)} onBack={() => { setView("bandeja"); cargar(); }} onArmar={() => setView("solicitud")} onEstado={onEstado} />}
+      {view === "solicitud" && sel && <Solicitud exp={sel} form={b4FormFor(sel.codigo)} onChangeForm={(u) => onChangeB4Form(sel.codigo, u)} onBack={() => setView("detalle")} />}
       {view === "tablero" && <Tablero rows={rows} />}
     </div>
   );
