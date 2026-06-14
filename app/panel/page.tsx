@@ -600,7 +600,7 @@ function Solicitud({ exp, form, onChangeForm, onBack }: {
 
       <div className="b4-legend">
         <span><i className="dot g" /> Lo que ya sabemos — pre-llenado por PUNKU</span>
-        <span><i className="dot a" /> Completa para formalizar — lo escribe la UNCP</span>
+        <span><i className="dot a" /> Completa para formalizar — lo redacta la UNCP con apoyo de IA</span>
       </div>
 
       {exp.datos_incompletos && (
@@ -649,7 +649,7 @@ function Solicitud({ exp, form, onChangeForm, onBack }: {
         </div>
 
         <div className="b4-block fill">
-          <div className="b4-bhead a"><I.clock s={15} /> Completa para formalizar<span>la UNCP escribe aquí</span></div>
+          <div className="b4-bhead a"><I.clock s={15} /> Completa para formalizar<span>la UNCP, con apoyo de IA</span></div>
           <EdField label="Objetivo general" pending={!f.objetivoGen.trim()} ai loading={sugiriendo === "objetivoGen"} onAi={() => sugerir("objetivoGen")}>
             <textarea className="ed-ta" rows={3} value={f.objetivoGen} onChange={(e) => set("objetivoGen", e.target.value)} placeholder="¿Cuál es el propósito principal del proyecto?" />
           </EdField>

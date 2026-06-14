@@ -28,10 +28,28 @@ El **Coordinador de enlace territorial** — rol que ya existe (la secretaria de
 ### Vista 2 — Detalle del expediente
 - Muestra todo el Expediente Territorial: resumen formal de la IA, área/facultades sugeridas, modalidad, confianza de la IA, familias afectadas, canal y origen de registro.
 - Acceso a los datos de contacto (solo este rol, vía backend) para comunicarse con el representante.
-- **Cambio de estado en 1 clic:** Recibido → En revisión → Derivado → Atendido → Cerrado.
-- Campo de nota opcional al cambiar estado (queda en el historial).
-- **Acción "Derivar" (estado + destino):** al derivar se registra el **destino** — una facultad (ej. "Ingeniería Ambiental") o "Otra entidad" (ONG/gobierno regional). Esto deja el timeline más claro. Marcar como "derivable a otra entidad" deja el expediente visible como necesidad no atendida por la UNCP, sin construir el flujo externo completo (roadmap). Sin workflow complejo: solo estado + destino.
-- **Acción "Enviar a la facultad" (simulación de correo) — construido:** abre una ventana modal que **previsualiza el correo** tal como saldría en producción: destinatario (placeholder con la facultad sugerida por la IA), asunto auto-armado (`Solicitud de proyección social — [comunidad] — deriva a [facultad]`), cuerpo con el resumen formal + datos clave (comunidad, distrito, familias, categoría, urgencia, código), y **dos adjuntos reales descargables** (`solicitud-[codigo].pdf` en formato UNCP y `expediente-[codigo].csv`). Botón "Enviar" → toast "Correo preparado para la facultad ✓ (simulación)". Lleva un **rótulo honesto**: los archivos son reales y descargables, pero el envío es una simulación; en producción, con el dominio institucional de la UNCP, el correo se enviaría automáticamente con un clic. Es frontend puro (no conecta servidor de correo).
+
+**ESTADO DE IMPLEMENTACIÓN — recorrido guiado lineal (construido):** el detalle se rediseñó como un **flujo lineal guiado** (UX: *progressive disclosure*), no una lista de botones sueltos:
+
+- **Stepper horizontal** arriba del detalle como columna vertebral: `Recibido → En revisión → Derivado → Atendido → Cerrado` (paso hecho = verde con check, actual = anillo verde, futuros = gris).
+- **Una sola acción principal por estado**, ocultando las demás:
+  - **Recibido** → "Revisar y clasificar" (pasa a *En revisión*).
+  - **En revisión** (B4 vacío) → "Armar solicitud y derivar" (abre B4).
+  - **En revisión** (B4 con datos) → selector de facultad destino + "Derivar a [facultad]" → **dispara el modal de correo**; al confirmar el envío el expediente pasa a *Derivado* + historial, en **un solo gesto** (derivar = notificar).
+  - **Derivado** → "Marcar como atendido".
+  - **Atendido** → "Cerrar caso".
+  - **Cerrado** → sin acciones (resumen de cierre).
+- **Campo de nota opcional** en la acción de cada estado (queda en el historial).
+- Se **eliminaron los botones sueltos** previos ("Avanzar", "Derivar a este destino", "Enviar a la facultad"): sus funciones viven ahora dentro de la acción contextual del estado.
+- El **selector de facultad** se inicializa con la facultad sugerida por la IA mapeada a su nombre canónico (selector y botón muestran siempre la misma facultad).
+
+- **Destino de la derivación:** una facultad (ej. "Medicina Humana") o "Otra entidad" (ONG/gobierno regional). Marcar "Otra entidad" deja el expediente visible como necesidad no atendida por la UNCP, sin construir el flujo externo completo (roadmap). Sin workflow complejo: solo estado + destino.
+
+- **"Derivar" = notificar a la facultad en un solo gesto (construido):** al pulsar "Derivar a [facultad]" se abre un modal que **previsualiza el correo** tal como saldría en producción: destinatario (placeholder con la facultad destino), asunto auto-armado (`Solicitud de proyección social — [comunidad] — deriva a [facultad]`), cuerpo con el resumen formal + datos clave (comunidad, distrito, familias, categoría, urgencia, código), y **dos adjuntos reales descargables** (`solicitud-[codigo].pdf` en formato UNCP y `expediente-[codigo].csv`). El botón "Derivar y enviar" → pasa el estado a *Derivado*, registra el historial y muestra el toast "Derivado a [facultad] ✓ Correo enviado (simulación). El ciudadano ya lo ve." Lleva un **rótulo honesto**: los archivos son reales y descargables, pero el envío es una simulación; en producción, con el dominio institucional de la UNCP, el correo se enviaría automáticamente. Es frontend puro (no conecta servidor de correo).
+
+- **Botón "Contactar por WhatsApp" (construido):** en la tarjeta de contacto del detalle. Tras revelar el contacto (solo el rol coordinador, vía backend), aparece un botón que abre `wa.me/[teléfono real]` con un **mensaje pre-redactado** que referencia el código y la comunidad del expediente. El teléfono se sirve server-side y solo con sesión activa (nunca al frontend público). Facilita el seguimiento humano, sobre todo en expedientes con `datos_incompletos`.
+
+- **Flag `datos_incompletos` como AVISO, no bloqueo (construido):** cuando la IA detectó input incoherente/incompleto, el expediente se creó igual (fricción cero para el ciudadano) y el detalle lo señala con un **tag** ("Datos incompletos") junto al estado y un **banner ámbar** que sugiere contactar al ciudadano por WhatsApp antes de formalizar. Ver spec 03 para cómo se determina el flag.
 
 ### Vista 3 — Tablero resumen (opcional, si da el tiempo)
 - Conteos simples: total de solicitudes, por estado, por área, por distrito.
@@ -43,16 +61,22 @@ Desde el detalle (B2), un botón "Armar solicitud de proyección social" abre es
 
 Dos bloques claros:
 - **"Lo que ya sabemos" (pre-llenado por PUNKU, solo lectura):** título tentativo, lugar, población beneficiaria, descripción del problema, área, modalidad, facultades, ODS sugerido, objetivo y meta sugeridos, justificación inicial. Todo derivado de la necesidad ciudadana + IA.
-- **"Completa para formalizar" (cajas reales editables por la UNCP):** objetivo general/específicos (con botón "✨ Sugerir con IA"), metas cuantitativas, metodología (con chips de opción rápida: capacitación, asistencia técnica, diagnóstico participativo, taller), cronograma (selector de fechas), recursos, presupuesto (S/), docente responsable, estudiantes participantes (nombre/DNI/código), indicadores (con "✨ Sugerir con IA").
+- **"Completa para formalizar" (cajas reales editables por la UNCP):** objetivo general/específicos (con botón "✨ Sugerir con IA"), metas cuantitativas, metodología (con chips de opción rápida: capacitación, asistencia técnica, diagnóstico participativo, taller), cronograma (selector de fechas), recursos, presupuesto (S/), docente responsable, estudiantes participantes (nombre/DNI/código), indicadores/evaluación (con "✨ Sugerir con IA"). Encabezado: "Completa para formalizar — lo redacta la UNCP con apoyo de IA".
 - **Firmas:** se completan al imprimir (no se digitalizan).
 - Botones: "Generar solicitud completa (PDF formato UNCP)" + "Guardar borrador".
-- **Barra de progreso del formato — construido:** un indicador "Formato oficial completo al **X%**" arranca en ~70% (lo que PUNKU ya pre-llenó desde el expediente) y **sube en vivo hacia 100%** conforme la UNCP completa los campos académicos (con "Sugerir con IA" o a mano). Refuerza visualmente que B4 convierte una necesidad simple en el documento formal, partiendo ya con la mayor parte hecha.
+- **Barra de progreso del formato — construido:** un indicador "Formato oficial completo al **X%**" arranca en ~73% (lo que PUNKU ya pre-llenó desde el expediente) y **sube en vivo hacia 100%** conforme la UNCP completa los campos académicos (con "Sugerir con IA" o a mano). Refuerza visualmente que B4 convierte una necesidad simple en el documento formal, partiendo ya con la mayor parte hecha.
+- **Campos pendientes resaltados — construido:** cada caja sin llenar lleva un pill ámbar **"PENDIENTE"**, y un resumen "Faltan **N** campos para llegar al 100%: …" lista los que faltan. Hace evidente qué resta sin bloquear nada.
+- **Aviso de datos poco confiables — construido:** si el expediente tiene `datos_incompletos = true`, la barra de progreso se muestra en **ámbar** con el texto "Pre-llenado a partir de datos poco confiables — revisa y corrige antes de formalizar" (no se recalcula el %; es una advertencia de calidad, no de avance).
+
+- **"✨ Sugerir con IA" = IA real (construido):** los cuatro botones de B4 (objetivo general, objetivos específicos, metas, evaluación/indicadores) llaman al motor de IA real (Claude Haiku, server-side, ver spec 03) que genera el texto a partir del contexto del expediente, con **fallback a plantilla** si la IA falla. No son sugerencias pre-cargadas.
+
+- **ESTADO DE IMPLEMENTACIÓN — Persistencia de B4 en Supabase (construido):** los campos que la UNCP completa en B4 **persisten en Supabase** en una **tabla nueva y separada `borradores_b4`** (relación 1:1 con `expedientes`, ver spec 02), no en columnas de `expedientes` (para rollback limpio). "Guardar borrador" hace upsert; al abrir B4 el formulario se **hidrata desde la BD** (la BD es fuente de verdad; el estado de sesión es solo capa de UX). El mismo formulario hidratado alimenta la **generación del PDF** y el **modal de correo**, de modo que B4 → PDF → correo comparten siempre los mismos datos. Se entregan los scripts `supabase/migration-borradores-b4.sql` y `supabase/rollback-borradores-b4.sql`.
 
 > Distinción de alcance clave: PUNKU pre-llena lo que nace de la NECESIDAD (la comunidad lo sabe); la UNCP completa lo ACADÉMICO/interno (objetivos formales, presupuesto, equipo, firmas). PUNKU entrega el punto de partida, no el proyecto final ni reemplaza la formalización.
 
 > Hallazgo de cumplimiento: el formato oficial UNCP exige como anexo la "Solicitud del beneficiario (escaneada)". El Expediente Territorial de PUNKU ES esa solicitud, en digital — encaja directamente en el proceso real.
 
-> **RANGO DE MANIOBRA — Sugerencias de IA en B4:** para el MVP, lo esencial es que las cajas editables existan (resuelve la fricción). Los botones "✨ Sugerir con IA" son el diferenciador; si el tiempo aprieta, pueden quedar como sugerencias pre-cargadas en la demo (dato ficticio) en vez de llamadas reales.
+> **RANGO DE MANIOBRA — Sugerencias de IA en B4 → RESUELTO (construido con IA real):** se construyeron como **llamadas reales** al motor de IA (Claude Haiku) con fallback a plantilla, no como sugerencias pre-cargadas. Las cajas editables existen y los cuatro botones "✨ Sugerir con IA" funcionan en producción.
 
 > **RANGO DE MANIOBRA — B4 como recorrido guiado (opción B):** existe una alternativa de B4 como wizard paso a paso (estilo árbol ciudadano) en vez de una sola pantalla. Deseable pero más costosa; la opción A (una pantalla con cajas + chips + sugerencias) es la base segura para el MVP.
 
@@ -74,12 +98,15 @@ Cada cambio de estado en el CRM se refleja automáticamente en la consulta de es
 
 ## 8. Criterios de aceptación
 
-- [ ] La bandeja muestra todos los expedientes con filtros por estado/área/distrito/urgencia.
-- [ ] El detalle permite cambiar estado en 1 clic con nota opcional.
-- [ ] Los cambios de estado se reflejan en la consulta del ciudadano.
-- [ ] Existe la acción de derivar (a facultad o marcar derivable a otra entidad).
-- [ ] Los datos de contacto solo son accesibles por el rol coordinador.
-- [ ] Las emergencias (urgencia alta) se destacan.
+- [x] La bandeja muestra todos los expedientes con filtros por estado/área/distrito/urgencia.
+- [x] El detalle permite avanzar el estado con nota opcional (recorrido guiado: una acción por estado).
+- [x] Los cambios de estado se reflejan en la consulta del ciudadano.
+- [x] Existe la acción de derivar (a facultad o marcar derivable a otra entidad); "Derivar" abre el correo y notifica en un solo gesto.
+- [x] Los datos de contacto solo son accesibles por el rol coordinador; con botón "Contactar por WhatsApp".
+- [x] Las emergencias (urgencia alta) se destacan.
+- [x] B4 persiste en Supabase (`borradores_b4`) y alimenta el PDF y el correo con los mismos datos.
+- [x] Los botones "Sugerir con IA" de B4 usan IA real con fallback.
+- [x] El flag `datos_incompletos` se muestra como aviso (tag + banner + barra ámbar), sin bloquear.
 
 ## 9. Métricas de éxito (para impacto/piloto)
 

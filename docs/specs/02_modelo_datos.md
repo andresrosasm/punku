@@ -42,6 +42,7 @@ Definir la estructura de datos mínima y suficiente para que PUNKU capture, estr
 | titulo | text | Título tentativo del proyecto (derivado del relato; alimenta B4) |
 | objetivo_sugerido | text | Objetivo general sugerido por la IA (paso E + relato; alimenta B4) |
 | meta_sugerida | text | Meta cuantitativa tentativa sugerida por la IA (alimenta B4) |
+| datos_incompletos | bool | **(Construido)** Aviso de calidad: `true` si la IA detectó input incoherente/poco claro. NO bloquea la creación; solo señala al coordinador en el panel (ver spec 03/04). Default `false`. |
 | creado_en | timestamp | Fecha de ingreso |
 | actualizado_en | timestamp | Última actualización de estado |
 
@@ -73,6 +74,27 @@ Definir la estructura de datos mínima y suficiente para que PUNKU capture, estr
 | estado | text | Estado registrado |
 | nota | text | Comentario opcional del coordinador |
 | fecha | timestamp | Cuándo se registró el cambio |
+
+### Tabla `borradores_b4` (persistencia del formato UNCP — **construido**)
+Guarda lo que la UNCP completa en B4 (spec 04). **Tabla nueva y separada**, en relación **1:1** con `expedientes` — deliberadamente NO se añadieron columnas a `expedientes`, para poder revertir la feature sin tocar el núcleo. Los scripts `supabase/migration-borradores-b4.sql` y `supabase/rollback-borradores-b4.sql` la crean/eliminan de forma aislada.
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| id | uuid (PK) | Identificador interno |
+| expediente_id | uuid (FK, único) | Liga 1:1 al expediente |
+| objetivo_general | text | Objetivo general (editable; "Sugerir con IA") |
+| objetivos_especificos | text | Objetivos específicos (editable; "Sugerir con IA") |
+| metas | text | Metas cuantitativas (editable; "Sugerir con IA") |
+| metodologia | text | Metodología (chips de opción rápida) |
+| fecha_ini / fecha_fin | date | Cronograma |
+| recursos | text | Recursos necesarios |
+| presupuesto | text | Presupuesto (S/) |
+| docente_asesor | text | Docente responsable |
+| evaluacion | text | Indicadores / evaluación (editable; "Sugerir con IA") |
+| estudiantes | jsonb | Lista de estudiantes (nombre/DNI/código) |
+| actualizado_en | timestamp | Último guardado |
+
+> "Guardar borrador" hace **upsert** por `expediente_id`; al abrir B4 el formulario se **hidrata desde esta tabla** (la BD es fuente de verdad; el estado de sesión es solo capa de UX). El mismo borrador hidratado alimenta el PDF y el modal de correo. RLS activado: tabla interna, solo `service_role` (ver spec 06).
 
 ### Tabla `facultades` (catálogo para clasificar/derivar)
 | Campo | Tipo | Descripción |
@@ -132,6 +154,7 @@ Recibido → En revisión → Derivado → Atendido → Cerrado
 
 ```
 contactos.expediente_id      → expedientes.id   (1:1)
+borradores_b4.expediente_id  → expedientes.id   (1:1)
 estados_historial.expediente_id → expedientes.id (1:N)
 expedientes.facultad_sugerida ~ facultades.nombre (referencia lógica)
 ```
@@ -144,12 +167,13 @@ expedientes.facultad_sugerida ~ facultades.nombre (referencia lógica)
 
 ## 8. Criterios de aceptación
 
-- [ ] El Expediente Territorial tiene todos los campos mínimos de la 00 (código, comunidad, categoría, urgencia, resumen, estado).
-- [ ] Datos sensibles (contacto) están en tabla separada con RLS.
-- [ ] Máximo 5 estados, con su traducción a lenguaje ciudadano.
-- [ ] El código único se genera al crear el expediente.
-- [ ] El historial de estados permite reconstruir el timeline.
-- [ ] El catálogo de facultades está precargado con las 5 áreas / 38 carreras.
+- [x] El Expediente Territorial tiene todos los campos mínimos de la 00 (código, comunidad, categoría, urgencia, resumen, estado).
+- [x] Datos sensibles (contacto) están en tabla separada con RLS.
+- [x] Máximo 5 estados, con su traducción a lenguaje ciudadano.
+- [x] El código único se genera al crear el expediente.
+- [x] El historial de estados permite reconstruir el timeline.
+- [x] El catálogo de facultades está precargado con las 5 áreas / 38 carreras.
+- [x] B4 persiste en la tabla separada `borradores_b4` (1:1), con migration + rollback aislados.
 
 ## 9. Lo que NO hace
 

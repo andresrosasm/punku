@@ -29,7 +29,7 @@
 │  MOTOR DE IA    │        │  SUPABASE (PostgreSQL)     │
 │  (interfaz      │        │  expedientes · contactos   │
 │   aislada)      │        │  estados_historial         │
-│  Claude Haiku   │        │  facultades                │
+│  Claude Haiku   │        │  facultades · borradores_b4│
 │  → DeepSeek/    │        │  RLS activado              │
 │   Huawei (prod) │        └────────────────────────────┘
 │  + fallback     │

@@ -26,9 +26,10 @@ ciudadano lo ve al instante al consultar su código en `/comunidad`. Es el mismo
 
 ### Características
 - **Árbol de decisiones visual** ciudadano (categoría → problema → dónde → relato → aspiración) + **PUNKU Emergencias** + **toggle facilitador**.
-- **Motor de IA aislado** (`lib/ai.ts`): una llamada a Claude (Haiku) estructura la necesidad → JSON validado, **con fallback a reglas** si la IA falla. *La demo nunca se cae.*
+- **Motor de IA aislado** (`lib/ai.ts`): una llamada a Claude (Haiku) estructura la necesidad → JSON validado, **con fallback a reglas** si la IA falla. *La demo nunca se cae.* Además evalúa coherencia y marca `datos_incompletos` como **aviso** (nunca bloquea al ciudadano).
 - **Tarjeta de Reconocimiento** ("Tu comunidad ya fue escuchada") con código de seguimiento.
-- **CRM**: bandeja con filtros, detalle del expediente, cambio de estado en 1 clic con historial, derivación, y **B4** — el formato oficial de proyección social UNCP semi-llenado.
+- **CRM con recorrido guiado**: bandeja con filtros y detalle del expediente como **flujo lineal** (stepper Recibido → En revisión → Derivado → Atendido → Cerrado + una acción principal por estado). **"Derivar" = notificar** a la facultad en un gesto (abre el correo con PDF+CSV adjuntos y pasa a *Derivado*). Botón **"Contactar por WhatsApp"** (teléfono real, server-side). Cada cambio de estado se refleja en la consulta del ciudadano.
+- **B4 — formato oficial UNCP** semi-llenado: cuatro botones **"Sugerir con IA"** (IA real con fallback), campos pendientes resaltados, y **persistencia en Supabase** (tabla `borradores_b4`) que alimenta el PDF y el correo.
 - **Tablero** con donut por estado y barras por área.
 - **Bilingüe ES / QU** (quechua Wanka, borrador a validar con hablante nativo).
 - **Privacidad por diseño**: los datos de contacto viven aparte, nunca van a la IA, y solo el rol coordinador los ve.

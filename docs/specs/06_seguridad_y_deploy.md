@@ -64,6 +64,7 @@ Garantizar que: (a) ningún secreto se filtre nunca, ni siquiera en el historial
 ## 6. Manejo de datos sensibles (cumplimiento)
 
 - Datos personales (nombre, teléfono) en tabla `contactos`, separada, con RLS, solo backend.
+- La tabla interna `borradores_b4` (formato B4) también tiene RLS y solo es accesible por `service_role` desde las API routes con sesión de coordinador; nunca desde el frontend público (spec 02/04).
 - La IA solo recibe la necesidad anonimizada (spec 03).
 - La demo usa datos 100% ficticios (declaración jurada del formulario).
 - Cumple Ley 31814, DL 1412, protección de datos (Indecopi).

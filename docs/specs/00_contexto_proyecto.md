@@ -67,7 +67,7 @@ Toda decisión hereda de estos principios, en este orden:
 | Tarjeta de Reconocimiento Territorial | Pantalla final: "Tu comunidad ya fue escuchada" + código + impacto + próximo paso | Ciudadana |
 | Consulta de estado | Con el código, ver el timeline de avance | Ciudadana |
 | CRM / bandeja territorial | Todas las solicitudes en un lugar, con clasificación y filtros | Interna |
-| Trazabilidad (estados) | Cambio de estado en 1 clic, historial visible. **Máximo 5 estados:** Recibido → En revisión → Derivado → Atendido → Cerrado | Interna |
+| Trazabilidad (estados) | Avance de estado en un recorrido guiado (una acción por estado), historial visible. **Máximo 5 estados:** Recibido → En revisión → Derivado → Atendido → Cerrado | Interna |
 | Estado "derivable a otra entidad" | Marca lo que la UNCP no puede atender (sin construir el flujo completo) | Interna |
 
 ### 5.2 Qué NO hace (límites explícitos / roadmap narrado)

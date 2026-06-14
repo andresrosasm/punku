@@ -156,4 +156,4 @@ Mismo destino interno (Solicitud → Clasificación → CRM), solo cambia el ton
 - NO pide login ni cuenta.
 - NO muestra al ciudadano las palabras "monovalente/polivalente", "área", ni nombres de oficinas internas.
 - NO procesa pagos (el TUPA y la formalización vienen después, en el proceso interno que PUNKU no toca).
-- NO envía notificaciones reales en el MVP (simuladas en pantalla; correo/WhatsApp en roadmap).
+- NO envía notificaciones automáticas al ciudadano en el MVP (el avance se ve al consultar el código). El **correo a la facultad** es una simulación (archivos reales, envío simulado); el botón **"Contactar por WhatsApp"** del panel sí abre un `wa.me` real con mensaje pre-redactado, pero es una acción **manual** del coordinador, no una notificación automática. Notificaciones automáticas (correo/WhatsApp/SMS) quedan en roadmap.
