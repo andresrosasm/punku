@@ -18,19 +18,19 @@ const NO_STORE = { "Cache-Control": "no-store, max-age=0, must-revalidate" };
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { codigo: string } }
+  { params }: { params: Promise<{ codigo: string }> }
 ) {
-  const data = await obtenerExpediente(params.codigo);
+  const data = await obtenerExpediente((await params).codigo);
   if (!data) return NextResponse.json({ error: "No encontrado" }, { status: 404, headers: NO_STORE });
   return NextResponse.json(data, { headers: NO_STORE });
 }
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { codigo: string } }
+  { params }: { params: Promise<{ codigo: string }> }
 ) {
   // Cambiar estado es una acción institucional -> requiere sesión de coordinador.
-  if (!tieneSesion(req)) {
+  if (!(await tieneSesion(req))) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
   const body = await req.json().catch(() => ({}));
@@ -39,7 +39,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Estado inválido" }, { status: 400 });
   }
   const nota = String(body.nota || "").slice(0, 400);
-  const exp = await cambiarEstado(params.codigo, estado, nota);
+  const exp = await cambiarEstado((await params).codigo, estado, nota);
   if (!exp) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
   return NextResponse.json({ expediente: exp });
 }

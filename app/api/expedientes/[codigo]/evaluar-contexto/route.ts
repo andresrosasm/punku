@@ -18,15 +18,15 @@ export const fetchCache = "force-no-store";
 
 const NO_STORE = { "Cache-Control": "no-store, max-age=0, must-revalidate" };
 
-export async function POST(req: NextRequest, { params }: { params: { codigo: string } }) {
-  if (!tieneSesion(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401, headers: NO_STORE });
-  const data = await obtenerExpediente(params.codigo);
+export async function POST(req: NextRequest, { params }: { params: Promise<{ codigo: string }> }) {
+  if (!(await tieneSesion(req))) return NextResponse.json({ error: "No autorizado" }, { status: 401, headers: NO_STORE });
+  const data = await obtenerExpediente((await params).codigo);
   if (!data) return NextResponse.json({ error: "Expediente no encontrado" }, { status: 404, headers: NO_STORE });
   const exp = data.expediente;
 
   const evalInsuficiente = await evaluarSustanciaContexto(exp);
   const nuevo = evalInsuficiente || !!exp.datos_incompletos; // aditivo: solo flaggea
   const cambio = nuevo !== !!exp.datos_incompletos;
-  if (cambio) await actualizarContextoExpediente(params.codigo, { datos_incompletos: nuevo });
+  if (cambio) await actualizarContextoExpediente((await params).codigo, { datos_incompletos: nuevo });
   return NextResponse.json({ cambio, insuficiente: nuevo }, { headers: NO_STORE });
 }

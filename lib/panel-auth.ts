@@ -28,9 +28,9 @@ export function credencialesOk(user: string, pass: string): boolean {
 }
 
 /** ¿Hay sesión válida? (lee la cookie httpOnly). Para uso en route handlers. */
-export function tieneSesion(req?: NextRequest): boolean {
+export async function tieneSesion(req?: NextRequest): Promise<boolean> {
   const value = req
     ? req.cookies.get(PANEL_COOKIE)?.value
-    : cookies().get(PANEL_COOKIE)?.value;
+    : (await cookies()).get(PANEL_COOKIE)?.value;
   return value === sessionToken();
 }
