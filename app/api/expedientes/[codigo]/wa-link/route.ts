@@ -23,12 +23,12 @@ function numeroPeru(tel: string): string {
   return d;
 }
 
-export async function POST(req: NextRequest, { params }: { params: { codigo: string } }) {
-  if (!tieneSesion(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401, headers: NO_STORE });
+export async function POST(req: NextRequest, { params }: { params: Promise<{ codigo: string }> }) {
+  if (!(await tieneSesion(req))) return NextResponse.json({ error: "No autorizado" }, { status: 401, headers: NO_STORE });
   const body = await req.json().catch(() => ({}));
   const preguntas = Array.isArray(body.preguntas) ? (body.preguntas as CocoPregunta[]) : [];
 
-  const data = await obtenerExpediente(params.codigo);
+  const data = await obtenerExpediente((await params).codigo);
   if (!data) return NextResponse.json({ error: "Expediente no encontrado" }, { status: 404, headers: NO_STORE });
   const exp = data.expediente;
 
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: { codigo: str
   });
   m += `Puede responder así: "1 2 1 2". ¡Gracias!`;
 
-  const contacto = await revelarContacto(params.codigo);
+  const contacto = await revelarContacto((await params).codigo);
   const numero = contacto ? numeroPeru(contacto.telefono) : "";
   const url = `https://wa.me/${numero}?text=${encodeURIComponent(m)}`;
   return NextResponse.json({ url }, { headers: NO_STORE });

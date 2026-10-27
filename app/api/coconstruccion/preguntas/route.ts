@@ -28,7 +28,7 @@ function contactoEsValido(c: { nombre_representante?: string; telefono?: string 
 }
 
 export async function POST(req: NextRequest) {
-  if (!tieneSesion(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401, headers: NO_STORE });
+  if (!(await tieneSesion(req))) return NextResponse.json({ error: "No autorizado" }, { status: 401, headers: NO_STORE });
   const body = await req.json().catch(() => ({}));
   const codigo = String(body.codigo || "");
   // Campos de B4 ya llenos (para saber si el contexto "aportes"/Recursos ya está cubierto).

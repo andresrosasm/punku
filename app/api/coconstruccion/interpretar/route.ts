@@ -18,7 +18,7 @@ export const fetchCache = "force-no-store";
 const NO_STORE = { "Cache-Control": "no-store, max-age=0, must-revalidate" };
 
 export async function POST(req: NextRequest) {
-  if (!tieneSesion(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401, headers: NO_STORE });
+  if (!(await tieneSesion(req))) return NextResponse.json({ error: "No autorizado" }, { status: 401, headers: NO_STORE });
   const body = await req.json().catch(() => ({}));
   const codigo = String(body.codigo || "");
   const respuesta = String(body.respuesta || "");

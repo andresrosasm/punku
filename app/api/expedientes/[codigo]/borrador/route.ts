@@ -16,14 +16,14 @@ export const fetchCache = "force-no-store";
 
 const NO_STORE = { "Cache-Control": "no-store, max-age=0, must-revalidate" };
 
-export async function GET(req: NextRequest, { params }: { params: { codigo: string } }) {
-  if (!tieneSesion(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401, headers: NO_STORE });
-  const data = await cargarBorrador(params.codigo);
+export async function GET(req: NextRequest, { params }: { params: Promise<{ codigo: string }> }) {
+  if (!(await tieneSesion(req))) return NextResponse.json({ error: "No autorizado" }, { status: 401, headers: NO_STORE });
+  const data = await cargarBorrador((await params).codigo);
   return NextResponse.json({ borrador: data?.form ?? null, listo: data?.listo ?? false }, { headers: NO_STORE });
 }
 
-export async function PUT(req: NextRequest, { params }: { params: { codigo: string } }) {
-  if (!tieneSesion(req)) return NextResponse.json({ error: "No autorizado" }, { status: 401, headers: NO_STORE });
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ codigo: string }> }) {
+  if (!(await tieneSesion(req))) return NextResponse.json({ error: "No autorizado" }, { status: 401, headers: NO_STORE });
   const body = (await req.json().catch(() => ({}))) as Partial<B4Form>;
 
   // Saneo a un B4Form completo (campos faltantes -> valores por defecto).
@@ -44,7 +44,7 @@ export async function PUT(req: NextRequest, { params }: { params: { codigo: stri
   };
 
   const listo = !!(body as any).listo;
-  const ok = await guardarBorrador(params.codigo, form, listo);
+  const ok = await guardarBorrador((await params).codigo, form, listo);
   if (!ok) return NextResponse.json({ error: "No se pudo guardar el borrador." }, { status: 404, headers: NO_STORE });
   return NextResponse.json({ ok: true, listo }, { headers: NO_STORE });
 }
